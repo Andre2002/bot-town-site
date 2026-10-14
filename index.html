@@ -214,7 +214,7 @@ pre{margin:0;background:#101512;border:2px solid #2d3833;border-radius:3px;paddi
 (() => {
 const W = 480, H = 320, MAX_BOTS = 20;
 // view-only: the public web page (github.io, or ?view to test) only shows the town. Bot state flows one way, bots -> town,
-// so anything that would tell a bot what to do (bell, meetings, tasks, summon, elder, workplaces) is class `cmd`: hidden and off
+// so anything that would tell a bot what to do (meetings, tasks, summon, elder, workplaces) is class `cmd`: hidden and off. The bell stays a toy: it only rings the town's own stand-up
 const VIEW_ONLY = location.hostname.endsWith('github.io') || new URLSearchParams(location.search).has('view');
 document.body.classList.toggle('view-only', VIEW_ONLY);
 const cv = document.getElementById('town');
@@ -825,11 +825,11 @@ function buildBg() {
 function buildSigns() {
   const out = [];
   const add = (txt, x, y, cls = '') => out.push(`<div class="sign ${cls}" style="left:${x / W * 100}%;top:${y / H * 100}%">${esc(txt)}</div>`);
-  HOUSES.forEach((h, i) => { const n = S.bots.filter(b => b.house === i).length; add(`${h.name} ${n}/5`, h.c, 101, 'small' + (n ? '' : ' vacant')); });
+  HOUSES.forEach((h, i) => { const n = S.bots.filter(b => b.house === i).length; add(`${h.name} ${n}/5`, h.c, 22, 'small' + (n ? '' : ' vacant')); });
   const cnt = id => { const n = S.bots.filter(b => b.inside === id).length; return n ? ` · ${n} in` : ''; };
   add('Town Hall' + cnt('hall'), 240, 9);
-  add('The Pub' + cnt('pub'), 358, 137); add('Task Board', 378, 225, 'small');
-  add('Market Plaza', 233, 228, 'small');
+  add('The Pub' + cnt('pub'), 358, 137); add('Task Board', 378, 185, 'small');
+  add('Market Plaza', 233, 133, 'small');
   add('Park', 15, 135, 'small'); // centre of a sign whose top-left sits on the hedge corner (8,132)
   add('Summon Hill', ...HILL.sign, 'small');
   if (S.bell && Date.now() < S.bell.until) add(S.bell.text, FEATURES.bell.x + 7, 98, 'ding');
@@ -1058,7 +1058,7 @@ function endMeeting() {
 }
 // the stand-up bell (clicked, or the clock reaching 9:00): rings and calls everyone awake to the hall, unless a meeting is on
 function ringBell() {
-  if (S.meeting || VIEW_ONLY) return;
+  if (S.meeting) return;
   const until = Date.now() + FEATURES.bell.ms;
   if (!S.bots.some(b => b.id !== S.elder && (b.state === 'idle' || b.state === 'working'))) S.bell = { text: 'Everyone’s asleep', until, frame: 0 };
   else { S.bell = { text: 'Ding!', until }; callMeeting('hall'); }
@@ -1213,18 +1213,13 @@ function draw(now, h) {
   }
 }
 function drawBeam(b, now) {
+  // the summon beam comes down from the sky, over whatever is below it: the town's signature (Andre, 2026-10-13; see docs/keep.md)
   const t = now - b.summonAt; if (t < 0 || t > 2200) return;
-  // the beam stays on the plateau: it starts at its top edge, fades in over 20 px, and is clamped to its x span
-  const a = Math.sin(Math.PI * t / 2200), w = 8 + Math.sin(now / 50) * 1.5, bx = b.x, by = b.y, [x0, top, pw] = HILL.plateau, x1 = x0 + pw;
-  const span = (l, r) => [Math.max(x0, l), Math.min(x1, r) - Math.max(x0, l)];
-  [[w, `170,230,255`, 0.3], [2, `230,250,255`, 0.75]].forEach(([hw, col, k]) => {
-    const gr = ctx.createLinearGradient(0, top, 0, top + 20); gr.addColorStop(0, `rgba(${col},0)`); gr.addColorStop(1, `rgba(${col},${k * a})`);
-    const [l, sw] = span(bx - hw, bx + hw); ctx.fillStyle = gr; ctx.fillRect(l, top, sw, by - top);
-  });
-  for (let i = 0; i < 14; i++) { const py = top + (now / 3 + i * 37) % (by - top + 4), px = Math.round(bx + Math.sin(i * 2.1 + now / 200) * (w + 3)); if (px < x0 || px >= x1) continue; ctx.fillStyle = `rgba(255,255,255,${a * Math.min(1, (py - top) / 20)})`; ctx.fillRect(px, Math.round(py), 1, 1); }
-  // the arrival ring's half-width stops at the plateau's sides (spot 3 by the wall gets a narrow ring); ry keeps the ring's shape
-  const k = Math.min(1, (bx - x0) / 24, (x1 - bx) / 24);
-  if (t > 900 && t < 1700) { const p = (t - 900) / 800, rx = Math.round((4 + p * 20) * k), ry = Math.max(1, Math.round((2 + p * 10) * k)); ctx.strokeStyle = `rgba(200,245,255,${1 - p})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(bx + 0.5, by - 2.5, rx, ry, 0, 0, Math.PI * 2); ctx.stroke(); }
+  const a = Math.sin(Math.PI * t / 2200), w = 8 + Math.sin(now / 50) * 1.5, bx = b.x, by = b.y;
+  ctx.fillStyle = `rgba(170,230,255,${0.3 * a})`; ctx.fillRect(bx - w, 0, w * 2, by);
+  ctx.fillStyle = `rgba(230,250,255,${0.75 * a})`; ctx.fillRect(bx - 2, 0, 4, by);
+  for (let i = 0; i < 14; i++) { const py = (now / 3 + i * 37) % (by + 4), px = bx + Math.sin(i * 2.1 + now / 200) * (w + 3); ctx.fillStyle = `rgba(255,255,255,${a})`; ctx.fillRect(Math.round(px), Math.round(py), 1, 1); }
+  if (t > 900 && t < 1700) { const p = (t - 900) / 800, rx = Math.round(4 + p * 20), ry = Math.round(2 + p * 10); ctx.strokeStyle = `rgba(200,245,255,${1 - p})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(bx + 0.5, by - 2.5, rx, ry, 0, 0, Math.PI * 2); ctx.stroke(); }
 }
 
 // ---------- interiors ----------
@@ -1727,7 +1722,7 @@ document.getElementById('room-back').addEventListener('click', closeRoom);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && view !== 'map') closeRoom(); });
 function mapHit(e) {
   const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
-  return [...(VIEW_ONLY ? [] : [{ id: 'bell', ...FEATURES.bell }]), ...REG.hits].find(h => x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h);
+  return [{ id: 'bell', ...FEATURES.bell }, ...REG.hits].find(h => x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h);
 }
 cv.addEventListener('mousemove', e => {
   const hit = mapHit(e); hoverId = hit ? hit.id : null; cv.style.cursor = hit ? 'pointer' : 'default';
