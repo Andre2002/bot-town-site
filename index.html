@@ -230,6 +230,7 @@ const HAIRPAL = {"orange": ["#260D14", "#6A1108", "#A42600", "#BF4000", "#E55600
 const IMG_SRC = Object.assign({}, window.CHAR_SRC, { plaza_cat: 'assets/plaza_cat/plaza_cat.png', leaf_piles: 'assets/autumn/leaf_piles.png' }); // villager sheets come from assets/chars/char_sprites.js; other art loads from its file
 IMG_SRC.bell = 'assets/standup/bell.png'; // new art loads from its file (keeps this page from growing)
 IMG_SRC.library = 'assets/library/library.png';
+IMG_SRC.desk = 'assets/library_desk/desk.png'; // library check-out desk (room art, not on the map)
 const FR = 64, DIR = { up: 0, left: 1, down: 2, right: 3 };
 const ROLE_LOOK = { 'Chief of Staff': 'steward', 'Engineer': 'blacksmith', 'Designer': 'artisan', 'Researcher': 'wizard', 'Writer': 'scribe', 'Analyst': 'alchemist' };
 const LOOK_INFO = { steward: { sex: 'male', title: 'Steward' }, blacksmith: { sex: 'male', title: 'Blacksmith' }, artisan: { sex: 'female', title: 'Artisan' }, wizard: { sex: 'female', title: 'Wizard' }, scribe: { sex: 'female', title: 'Scribe' }, alchemist: { sex: 'male', title: 'Alchemist' } };
@@ -894,6 +895,7 @@ function plazaPoint() {
   }
   return [180, 170];
 }
+function bedOf(b) { return Math.floor(b.slot / 4); } // 4 houses x 5 beds: slot % 4 picks the house, so a bed is never shared
 function slotIndex(b, list) { return list.filter(o => o.id < b.id).length; }
 // a bot's goal at a hangout spot t on the park ring
 const hangGoal = t => ({ key: 'park', node: 'm80', area: 'park', hang: t, ringA: t.a, pts: [[81, 134], ringPt(RING_IN), ...arcPts(RING_IN, t.a), [t.x, t.y]] });
@@ -959,7 +961,7 @@ function summon({ name, role, ws, init }) {
   const slot = init && init.slot != null && !S.bots.some(b => b.slot === init.slot) ? init.slot : [...Array(MAX_BOTS).keys()].find(i => !S.bots.some(b => b.slot === i));
   const end = HILL_PTS[HILL_PTS.length - 1];
   const b = {
-    id: S.nextId++, name, role, ws, slot, house: Math.floor(slot / 5), color: BOT_COLORS[slot % BOT_COLORS.length],
+    id: S.nextId++, name, role, ws, slot, house: slot % 4, color: BOT_COLORS[slot % BOT_COLORS.length],
     skin: '#f2cfa8', hair: HAIRS[(slot * 5 + 1) % HAIRS.length], hairStyle: (slot * 3 + 1) % 4,
     state: 'summoning', task: '', x: end[0], y: end[1], dir: 'down', anchor: 'v219', exit: HILL_PTS.slice(0, -1).reverse(),
     path: [], goalKey: 'summon', goal: null, inside: null, bubble: null, spot: null, summonAt: Infinity, appeared: false, init: init || { state: 'idle' }, wanderAt: 0, walking: false,
@@ -997,7 +999,7 @@ function update(b, dt, now) {
     return;
   }
   if (b.spot != null && Math.hypot(b.x - HILL.spots[b.spot][0], b.y - HILL.spots[b.spot][1]) >= 20) b.spot = null;
-  if (b.inside) { updateInside(b, dt); return; }
+  if (b.inside) { updateInside(b, dt, now); return; }
   if (!b.path.length) {
     const gl = goalFor(b);
     if (gl.key !== b.goalKey) routeTo(b, gl);
@@ -1021,6 +1023,7 @@ function arrive(b, now) {
   if (b.goal && b.goal.enter) {
     b.inside = b.goal.enter; b.doorPt = [b.x, b.y];
     b.ix = DOOR_I.x; b.iy = DOOR_I.y; b.ipath = []; b.istation = null; b.leaving = false; b.inBed = false; b.iwalk = false;
+    b.deskDone = false; b.book = null; b.dk = null; b.ret = false; if (b.inside === 'library' && !S.bots.some(o => o !== b && o.inside === 'library')) S.libRet = 0; // returns go back on the stack when the library empties
     if (b.state === 'idle' && isNight(S.hour) && b.inside.startsWith('house')) { b.state = 'asleep'; addLog(`${b.name} went quiet and went to bed`); }
     dirty = true;
   }
@@ -1030,13 +1033,22 @@ function lPath(x0, y0, x1, y1) {
   const lane = Math.max(50, Math.min(146, y1 > y0 ? y0 + 8 : y1 + 8));
   return [[x0, lane], [x1, lane], [x1, y1]];
 }
-function updateInside(b, dt) {
-  const gl = goalFor(b);
+// library desk: every visit stops at DESK first (take a book), and a bot holding one stops there again on the way out (hand it back)
+const DESK = { x: 104, y: 132 }, COVERS = ['#a2342c', '#37478f', '#36744a', '#c9a24a', '#2d6673'];
+function updateInside(b, dt, now) {
+  const gl = goalFor(b), lib = b.inside === 'library';
   if (gl.key !== b.goalKey) {
-    if (!b.leaving) { b.leaving = true; b.inBed = false; b.istation = null; b.ipath = lPath(b.ix, b.iy, DOOR_I.x, DOOR_I.y); dirty = true; }
+    if (!b.leaving) {
+      b.leaving = true; b.inBed = false; b.istation = null; b.ipath = lPath(b.ix, b.iy, DOOR_I.x, DOOR_I.y); dirty = true;
+      if (lib && b.book) { b.ret = true; b.istation = 'desk'; b.ipath = lPath(b.ix, b.iy, DESK.x, DESK.y); }
+      else b.dk = null;
+    }
   } else if (!b.leaving) {
-    const st = stationOf(b);
-    if (st.key !== b.istation) { b.istation = st.key; b.ifx = st; b.inBed = false; b.ipath = lPath(b.ix, b.iy, st.x, st.y); }
+    if (lib && !b.deskDone) { if (b.istation !== 'desk') { b.istation = 'desk'; b.ifx = { ...DESK, key: 'desk' }; b.ipath = lPath(b.ix, b.iy, DESK.x, DESK.y); } }
+    else {
+      const st = stationOf(b);
+      if (st.key !== b.istation) { b.istation = st.key; b.ifx = st; b.inBed = false; b.ipath = lPath(b.ix, b.iy, st.x, st.y); }
+    }
   }
   b.iwalk = false;
   let budget = 30 * dt;
@@ -1048,7 +1060,14 @@ function updateInside(b, dt) {
     else { b.ix += dx / d * budget; b.iy += dy / d * budget; budget = 0; }
   }
   if (!b.ipath.length) {
-    if (b.leaving) {
+    if (lib && b.istation === 'desk' && (b.ret || !b.leaving && !b.deskDone)) {
+      // desk timers run on `now`: face the desk 0.6 s, take frame 0.4 s (the book appears); on the way out the return frame 0.4 s (the book goes to the returns pile)
+      if (!b.dk) { b.dk = { ph: b.ret ? 'ret' : 'face', t: now }; if (b.ret) { b.book = null; S.libRet = (S.libRet || 0) + 1; } }
+      const dk = b.dk;
+      if (dk.ph === 'face' && now - dk.t >= 600) { dk.ph = 'take'; dk.t = now; b.book = COVERS[b.id % 5]; }
+      else if (dk.ph === 'take' && now - dk.t >= 400) { b.deskDone = true; b.dk = null; }
+      else if (dk.ph === 'ret' && now - dk.t >= 400) { b.ret = false; b.dk = null; b.ipath = lPath(b.ix, b.iy, DOOR_I.x, DOOR_I.y); }
+    } else if (b.leaving) {
       b.leaving = false; b.inside = null; b.iwalk = false;
       b.x = b.doorPt[0]; b.y = b.doorPt[1]; routeTo(b, gl);
     } else if (b.istation === 'bed' && b.state === 'asleep') b.inBed = true;
@@ -1194,7 +1213,7 @@ function drawHair(c, b, x, hy) {
 }
 function drawBot(c, b, x, y, walk, t) {
   const k = c === rctx ? 2 : 3;
-  const d = walk ? b.dir : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && atHang(b) && HANG[b.hang].dir) || 'down');
+  const d = walk ? b.dir : c === rctx && b.dk ? 'left' : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && atHang(b) && HANG[b.hang].dir) || 'down');
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
   drawChar(c, b, x * k, y * k, typeof d === 'string' ? d : 'down', walk ? 1 + Math.floor(t / 90) % 8 : 0);
   c.restore();
@@ -1636,6 +1655,8 @@ function buildRoom(id) {
     });
     R(c, 36, 82, 11, 6, P.out); R(c, 37, 83, 4, 4, '#f6f0e2'); R(c, 42, 83, 4, 4, '#efe6d6'); R(c, 41, 83, 1, 4, '#c9b48a'); R(c, 38, 84, 2, 1, '#9a8a7a'); R(c, 43, 85, 2, 1, '#9a8a7a');
     [['#37478f', 0], ['#a2342c', 1], ['#36744a', 0]].forEach(([col, o], i) => { R(c, 194 + o, 84 - i * 2, 9, 3, P.out); R(c, 195 + o, 84 - i * 2, 7, 2, col); R(c, 195 + o, 84 - i * 2, 7, 1, shade(col, 0.3)); });
+    // check-out desk on the rug's lower-left edge: its lamp lights the desk while anyone is inside (drawRoom); books are drawn live
+    ell(c, 78, 137, 20, 2, 'rgba(0,0,0,.25)'); c.drawImage(IMG.desk, 58, 118); reg.lights.push({ x: 63, y: 121, r: 16, occ: true });
     // floor book stack (front left) and a small muted globe on a wooden stand (front right)
     [['#6b4a5c', 1], ['#c9a24a', 0], ['#2d6673', 2], ['#a2342c', 0], ['#e6dcc6', 1]].forEach(([col, o], i) => { R(c, 22 + o, 142 - i * 3, 13, 4, P.out); R(c, 23 + o, 143 - i * 3, 11, 2, col); R(c, 23 + o, 143 - i * 3, 11, 1, shade(col, 0.3)); R(c, 32 + o, 143 - i * 3, 1, 2, '#f6f0e2'); });
     iPlant(c, 46, 146);
@@ -1681,7 +1702,7 @@ function getRoom(id) {
 function stationOf(b) {
   const id = b.inside, room = getRoom(id);
   if (room.kind === 'house') {
-    if (b.state === 'asleep') { const bd = room.reg.beds[b.slot % 5]; return { key: 'bed', x: bd.x + 15, y: bd.y + 46 }; }
+    if (b.state === 'asleep') { const bd = room.reg.beds[bedOf(b)]; return { key: 'bed', x: bd.x + 15, y: bd.y + 46 }; }
     const i = slotIndex(b, S.bots.filter(o => o.inside === id && !o.leaving && o.state !== 'asleep'));
     return { ...room.stations[i % room.stations.length], key: 's' + i };
   }
@@ -1740,7 +1761,7 @@ function drawRoom(now, h) {
   if (reg.ingot && working) { R(c, reg.ingot.x, reg.ingot.y, 8, 2, Math.floor(now / 200) % 2 ? '#ff9a3d' : '#ffb84d'); R(c, reg.ingot.x + 1, reg.ingot.y, 6, 1, '#ffe08a'); }
   if (kind === 'house') {
     const hi = +id.slice(5);
-    reg.beds.forEach((bd, i) => { const o = S.bots.find(b => b.house === hi && b.slot % 5 === i); if (o) { R(c, bd.x + 2, bd.y + 18, 26, 18, o.color); for (let qy = 0; qy < 4; qy++) for (let qx = 0; qx < 5; qx++) if ((qx + qy) % 2) R(c, bd.x + 3 + qx * 5, bd.y + 21 + qy * 4, 5, 4, shade(o.color, 0.22)); R(c, bd.x + 2, bd.y + 18, 26, 3, shade(o.color, 0.4)); R(c, bd.x + 2, bd.y + 34, 26, 2, shade(o.color, -0.25)); } });
+    reg.beds.forEach((bd, i) => { const o = S.bots.find(b => b.house === hi && bedOf(b) === i); if (o) { R(c, bd.x + 2, bd.y + 18, 26, 18, o.color); for (let qy = 0; qy < 4; qy++) for (let qx = 0; qx < 5; qx++) if ((qx + qy) % 2) R(c, bd.x + 3 + qx * 5, bd.y + 21 + qy * 4, 5, 4, shade(o.color, 0.22)); R(c, bd.x + 2, bd.y + 18, 26, 3, shade(o.color, 0.4)); R(c, bd.x + 2, bd.y + 34, 26, 2, shade(o.color, -0.25)); } });
   }
   reg.fires.forEach(f => {
     if (f.work && !inside.length) return; // the forge hearth keeps only its ember bed while nobody is in
@@ -1760,10 +1781,30 @@ function drawRoom(now, h) {
     R(c, cx + 2, cy - 7, 1, 1, P.out); R(c, cx + 6, cy - 7, 1, 1, P.out); R(c, cx - 7, cy - 1 - tl, 3, 1, '#e8892b'); R(c, cx - 2, cy - 2, 3, 1, '#f5b06b');
     if (Math.floor(now / 2000) % 4 === 0) zLetter(c, cx + 5, cy - 12, 'rgba(255,255,255,.8)');
   }
+  if (kind === 'library') {
+    // desk books: 6 in all (lending stack, returns pile, books in hands); the lamp's 2-tone pool shows while anyone is inside
+    const hands = inside.filter(b => b.book).length, ret = inside.length ? Math.min(3, S.libRet || 0) : 0, lend = Math.min(5, 6 - hands - ret);
+    if (inside.length) { c.save(); c.beginPath(); c.rect(58, 123, 40, 6); c.clip(); ell(c, 68, 125, 9, 2, '#e2b06a'); ell(c, 68, 125, 4, 1, '#f6d58a'); c.restore(); }
+    const slab = (x, i) => { const col = COVERS[(i + x) % 5], y = 123 - i * 2; R(c, x, y, 9, 3, P.out); R(c, x + 1, y, 7, 2, col); R(c, x + 1, y, 7, 1, shade(col, 0.3)); };
+    for (let i = 0; i < lend; i++) slab(89, i);
+    for (let i = 0; i < ret; i++) slab(80, i);
+  }
   inside.slice().sort((a, b) => (a.inBed === b.inBed ? a.iy - b.iy : a.inBed ? -1 : 1)).forEach(b => {
-    if (b.inBed) drawSleeper(c, b, reg.beds[b.slot % 5], now);
+    if (b.inBed) drawSleeper(c, b, reg.beds[bedOf(b)], now);
     else if (b.ifx && b.ifx.sit && b.istation === b.ifx.key && !b.iwalk && !b.leaving) { c.save(); c.beginPath(); c.rect(0, 0, IW, b.ifx.sit); c.clip(); drawBot(c, b, Math.round(b.ix), Math.round(b.iy), false, now); c.restore(); }
     else drawBot(c, b, Math.round(b.ix), Math.round(b.iy), b.iwalk, now);
+  });
+  if (kind === 'library') inside.forEach(b => {
+    const x = Math.round(b.ix), y = Math.round(b.iy), cv = b.book || COVERS[b.id % 5], dir = b.iwalk ? b.dir : 'down';
+    if (b.dk && b.dk.ph !== 'face') R(c, x - 7, y - 12, 2, 1, b.color); // the reach: a 2x1 arm stub toward the stack
+    if (!b.book) return;
+    if (b.dk) { R(c, x - 9, y - 14, 2, 3, cv); R(c, x - 8, y - 14, 1, 3, '#f6f0e2'); return; } // take frame: the closed book at the hand
+    if (b.deskDone && !b.leaving && b.ifx && x === b.ifx.x && y === b.ifx.y) { // reading: an open book at chest height, hands at its lower corners
+      const x0 = x - 3, y0 = y - 13, flip = b.flipHold != null ? b.flipHold : (Date.now() + b.id * 1300) % 4000 < 300;
+      R(c, x0, y0, 7, 4, shade(cv, -0.3)); R(c, x0 + 1, y0 + 1, 2, 2, '#f6f0e2'); R(c, x0 + 3, y0 + 1, 1, 2, '#c9b48a');
+      if (flip) { R(c, x0 + 4, y0 - 1, 1, 3, '#fffaf0'); R(c, x0 + 5, y0 + 1, 1, 2, cv); } else R(c, x0 + 4, y0 + 1, 2, 2, '#efe6d6');
+      R(c, x0, y0 + 3, 1, 1, b.color); R(c, x0 + 6, y0 + 3, 1, 1, b.color);
+    } else if (dir !== 'up') { const bx = dir === 'left' ? x - 6 : x + 5; R(c, bx, y - 13, 2, 3, cv); R(c, bx + (dir === 'left' ? 0 : 1), y - 13, 1, 3, '#f6f0e2'); } // carried closed: cover + 1 px cream edge
   });
   inside.forEach(b => { if ((b.state === 'working' || b.ifx && b.ifx.fx === 'music') && !b.iwalk && !b.leaving && !b.inBed) workFx(c, b, now); });
   if (reg.floats) reg.floats.forEach(([fx, fy], i) => { const yy = fy + Math.round(Math.sin(now / 600 + i * 1.3) * 2); R(c, fx - 1, yy, 3, 5, P.out); R(c, fx, yy + 1, 1, 4, '#f6f0e2'); R(c, fx, yy - 1 - (Math.floor(now / 170 + i) % 2), 1, 2, '#ffd86b'); });
@@ -1771,7 +1812,7 @@ function drawRoom(now, h) {
   if (tint > 0) { c.fillStyle = `rgba(16,20,62,${tint})`; c.fillRect(0, 0, IW, IH); }
   if (reg.floats) reg.floats.forEach(([fx, fy], i) => { const yy = fy + Math.round(Math.sin(now / 600 + i * 1.3) * 2), gr = c.createRadialGradient(fx, yy, 0, fx, yy, 14); gr.addColorStop(0, `rgba(255,200,110,${0.25 + tint * 0.5})`); gr.addColorStop(1, 'rgba(255,200,110,0)'); c.fillStyle = gr; c.fillRect(fx - 14, yy - 14, 28, 28); });
   reg.lights.forEach(l => {
-    if (l.work && !working) return;
+    if (l.work && !working || l.occ && !inside.length) return;
     const a = (l.flame ? 0.28 : 0.3) + tint * 0.5, col = l.col || '255,200,110';
     const r = l.r + (l.flicker ? Math.sin(now / 170) + Math.sin(now / 53) * 0.6 : 0); // flicker: ±1.6 px off the frame clock
     const gr = c.createRadialGradient(l.x, l.y, 0, l.x, l.y, r); gr.addColorStop(0, `rgba(${col},${a})`); gr.addColorStop(1, `rgba(${col},0)`);
@@ -1831,7 +1872,7 @@ function updateTags(now) {
     } else {
       if (b.inside !== view) { el.hidden = true; return; }
       w = IW; hgt = IH;
-      if (b.inBed) { const bd = getRoom(view).reg.beds[b.slot % 5]; x = bd.x + 15; y = bd.y - 2; } else { x = b.ix; y = b.iy - 26; }
+      if (b.inBed) { const bd = getRoom(view).reg.beds[bedOf(b)]; x = bd.x + 15; y = bd.y - 2; } else { x = b.ix; y = b.iy - 26; }
     }
     el.hidden = false;
     el.style.left = (x / w * 100) + '%'; el.style.top = (y / hgt * 100) + '%';
@@ -2055,9 +2096,21 @@ if (saved) restoreTown(saved); else [
 ].forEach(summon);
 // ?scene=<name>: test setups for tools/shoot.py --scene. They fix the clock and starting spots (the seeds start at their goals) and pin the sim
 // (no random tasks, no wandering) so a shot shows exactly the setup. Nothing is stored; without ?scene the page runs as usual
+// library scenes: Wren at the desk (take frame, or return frame with returns 1), Sage mid-walk carrying a closed book, Quill reading on the open frame (or the flip frame)
+const libScene = ret => () => {
+  const [wren, sage, quill] = ['Wren', 'Sage', 'Quill'].map(n => S.bots.find(b => b.name === n)), t = Date.now() + 1e12;
+  [wren, sage, quill].forEach(b => Object.assign(b, { state: 'idle', task: '', hang: null, idlePick: { block: 'eve', place: 'library' }, inside: 'library', goalKey: 'library', anchor: 'b357', exit: [[FEATURES.library.door, 301]], doorPt: [FEATURES.library.door, 296], ipath: [], leaving: false, deskDone: true, dk: null, ret: false, book: COVERS[b.id % 5] }));
+  if (ret) { Object.assign(wren, { book: null, leaving: true, ret: true, dir: 'left' }); S.libRet = 1; } // before the stations: a leaving bot drops out of the seat order
+  [sage, quill].forEach(b => { const st = stationOf(b); Object.assign(b, { istation: st.key, ifx: { ...st } }); });
+  Object.assign(sage, { ix: 88, iy: 110, ifx: { x: 104, y: 100, key: sage.istation } });
+  Object.assign(quill, { ix: 42, iy: 87, flipHold: ret, ifx: { ...getRoom('library').stations[0], key: quill.istation } });
+  Object.assign(wren, { ix: DESK.x, iy: DESK.y, istation: 'desk', ifx: { ...DESK, key: 'desk' }, deskDone: false, dk: { ph: ret ? 'ret' : 'take', t } });
+};
 const scene = {
   'library-day': { hour: 10, wren: true, look: 'library' },
   'library-dusk': { hour: 19, wren: true },
+  'library-desk': { hour: 19, look: 'library', then: libScene(false) },
+  'library-return': { hour: 19, look: 'library', then: libScene(true) },
   'lots-full': { hour: 9, then: () => addWsBtn.click() },
   standup: { hour: 9, min: 1, standup: true },
   'standup-hall': { hour: 9, min: 1, standup: true, look: 'hall' },
