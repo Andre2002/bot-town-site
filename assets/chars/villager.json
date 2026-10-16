@@ -1,0 +1,13 @@
+{
+  "id": "villager",
+  "sheet": null,
+  "frame": { "w": 64, "h": 64 },
+  "rows": { "up": 0, "left": 1, "down": 2, "right": 3 },
+  "anchor": { "x": 32, "y": 62 },
+  "baseline": 62,
+  "anims": {
+    "stand": { "frames": [0], "fps": 0 },
+    "walk": { "frames": [1, 2, 3, 4, 5, 6, 7, 8], "fps": 11.1111 }
+  },
+  "notes": "The villager sheet is composed at runtime (sheetFor in index.html) from the villager atlas (chars/atlas.png, built from chars/layers/ by tools/art/pack.py): 9 columns x 4 rows (rows = facing). Anchor = the feet: the bot's (x, y) in screen px. Frame indexes are columns within the facing's row."
+}

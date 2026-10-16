@@ -1,0 +1,12 @@
+{
+  "id": "bell",
+  "sheet": "bell.png",
+  "frame": { "w": 14, "h": 14 },
+  "anchor": { "x": 0, "y": 0 },
+  "baseline": 13,
+  "anims": {
+    "rest": { "frames": [0], "fps": 0 },
+    "ring": { "frames": [1, 0, 2, 0], "fps": 8.3333 }
+  },
+  "notes": "F1 rest, F2 tilt-left, F3 tilt-right. ring swings F2/F1/F3/F1 at 120 ms a frame while S.bell is set (a scene may freeze S.bell.frame). Anchor is the top-left, so FEATURES.bell stays the sprite's rect."
+}

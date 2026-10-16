@@ -109,12 +109,14 @@ pre{margin:0;background:#101512;border:2px solid #2d3833;border-radius:3px;paddi
 .log li{display:grid;grid-template-columns:64px minmax(0,1fr);gap:6px}
 .log time{font-family:var(--mono);font-size:11.5px;color:var(--ink-muted);font-variant-numeric:tabular-nums;padding-top:1px}
 .empty{color:var(--ink-muted);font-size:13px;margin:0}
+.grok{align-self:flex-start;font-size:16px;padding:10px 16px;background:var(--accent);color:var(--ink);border-color:var(--ink);box-shadow:0 3px 0 var(--ink)}
+#grok-box{white-space:pre-wrap;background:var(--paper);color:var(--ink);border:2px solid var(--ink);border-radius:2px;padding:8px 10px;font:12px/1.4 var(--mono);user-select:all}
 </style>
 
 <div class="wrap">
   <header class="top">
     <h1>Bot Town</h1>
-    <p class="sub">Example bots with simulated activity. Click any building to look inside.</p>
+    <p class="sub" id="sub">Example bots with simulated activity. Click any building to look inside.</p>
   </header>
 
   <div class="screen" id="screen">
@@ -186,6 +188,13 @@ pre{margin:0;background:#101512;border:2px solid #2d3833;border-radius:3px;paddi
           </ul>
         </div>
       </div>
+      <div class="panel join">
+        <h2>Bring your bot</h2>
+        <p>Your own bots can live here too: one line to join, one tiny request per task, no AI calls. <a href="join.html">How to join</a></p>
+        <button class="btn grok" id="grok-btn" type="button">Connect Grok Bot</button>
+        <p id="grok-msg"></p>
+        <div id="grok-box" hidden></div>
+      </div>
       <div class="panel credits">
         <h2>Art credits</h2>
         <p>Villagers built with the <a href="https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator" target="_blank" rel="noopener">Universal LPC Spritesheet Generator</a> (Liberated Pixel Cup art, CC-BY-SA 3.0 / GPL 3.0), art by Stephen Challener (Redshrike), Johannes Sjölund (wulax), Manuel Riecke (MrBeast), Luke Mehl, Matthew Krohn (Makrohn), Eliza Wyatt (ElizaWy), JaidynReiman, Bluecarrot16, Benjamin K. Smith (BenCreating), Michael Whitlock (bigbeargames), Sander Frenken (castelonia), Thane Brimhall (pennomi), Pierre Vigier (pvigier), Napsio, Nila122, Marcel van de Steeg (MadMarcel), William Thompson, Joe White, Mandi Paugh, Barbara Rivera, Tuomo Untinen (reemax) and other LPC contributors. Town and interiors are drawn in code.</p>
@@ -210,7 +219,7 @@ pre{margin:0;background:#101512;border:2px solid #2d3833;border-radius:3px;paddi
   </div>
 </div>
 
-<script src="assets/chars/char_sprites.js"></script>
+<script src="assets/manifest.js"></script>
 <script>
 (() => {
 const W = 480, H = 320, MAX_BOTS = 20;
@@ -226,51 +235,61 @@ const screenEl = document.getElementById('screen');
 const signsEl = document.getElementById('signs');
 const tagsEl = document.getElementById('tags');
 const IMG = {};
-const HAIRPAL = {"orange": ["#260D14", "#6A1108", "#A42600", "#BF4000", "#E55600", "#FF8A00"], "chestnut": ["#200C0D", "#3A130E", "#63200B", "#81310A", "#B6550E", "#D28102"], "dark_brown": ["#050100", "#160701", "#290E02", "#421603", "#5F1F04", "#792806"], "blonde": ["#331313", "#552B15", "#AC5D1F", "#E09E2B", "#FCCF56", "#FFE67D"], "black": ["#000000", "#080A0A", "#101414", "#1C2222", "#31313E", "#4A5057"], "ginger": ["#300500", "#6A1A00", "#9C3B01", "#CC6901", "#FAA301", "#FFE01E"], "light_brown": ["#1A0E04", "#301B07", "#60350F", "#7D4513", "#AE682A", "#C88D58"], "white": ["#1D1D21", "#484E57", "#8B9498", "#B8BBBC", "#D8DCDC", "#FFFFFF"], "raven": ["#010107", "#040B18", "#061421", "#071F2A", "#0D384D", "#1A5369"], "sandy": ["#1C0E06", "#633E2C", "#99622D", "#BF9D5A", "#EDDC7E", "#F6F6C2"]};
-const IMG_SRC = Object.assign({}, window.CHAR_SRC, { plaza_cat: 'assets/plaza_cat/plaza_cat.png', leaf_piles: 'assets/autumn/leaf_piles.png' }); // villager sheets come from assets/chars/char_sprites.js; other art loads from its file
-IMG_SRC.bell = 'assets/standup/bell.png'; // new art loads from its file (keeps this page from growing)
+const IMG_SRC = { leaf_piles: 'assets/autumn/leaf_piles.png' }; // art loads from its file; villagers from the atlas below
 IMG_SRC.library = 'assets/library/library.png';
 IMG_SRC.desk = 'assets/library_desk/desk.png'; // library check-out desk (room art, not on the map)
-const FR = 64, DIR = { up: 0, left: 1, down: 2, right: 3 };
+// animated sprites are a PNG sheet + a JSON next to it (frames, fps, anchor, baseline), packed into assets/manifest.js by tools/art/pack.py
+const ANIM = window.ASSETS || {};
+Object.values(ANIM).forEach(a => { if (a.src) IMG_SRC[a.id] = a.src; });
+const VILLAGER = ANIM.villager, FR = VILLAGER.frame.w, DIR = VILLAGER.rows;
+// the frame of `anim` showing at time t (ms); a frame lasts round(1000 / fps) ms. An `interrupt` (the cat's tail flick) replaces the loop once per every_ms slot, offset by up to jitter_ms
+function animFrame(a, anim, t) {
+  const an = a.anims[anim], it = an.interrupt, ms = p => Math.round(1000 / p.fps);
+  if (it) { const slot = Math.floor(t / it.every_ms), ct = t % it.every_ms - (slot * 7919) % (it.jitter_ms || 1); if (ct >= 0 && ct < it.frames.length * ms(it)) return it.frames[Math.floor(ct / ms(it))]; }
+  return an.fps ? an.frames[Math.floor(t / ms(an)) % an.frames.length] : an.frames[0];
+}
+// draw frame f of a sheet with its anchor on (x, y); frames run left to right, then top to bottom
+function drawFrame(c, a, f, x, y, img = IMG[a.id]) {
+  const { w, h } = a.frame, cols = Math.floor(img.width / w);
+  c.drawImage(img, (f % cols) * w, Math.floor(f / cols) * h, w, h, Math.round(x - a.anchor.x), Math.round(y - a.anchor.y), w, h);
+}
 const ROLE_LOOK = { 'Chief of Staff': 'steward', 'Engineer': 'blacksmith', 'Designer': 'artisan', 'Researcher': 'wizard', 'Writer': 'scribe', 'Analyst': 'alchemist' };
 const LOOK_INFO = { steward: { sex: 'male', title: 'Steward' }, blacksmith: { sex: 'male', title: 'Blacksmith' }, artisan: { sex: 'female', title: 'Artisan' }, wizard: { sex: 'female', title: 'Wizard' }, scribe: { sex: 'female', title: 'Scribe' }, alchemist: { sex: 'male', title: 'Alchemist' } };
 const HAIR_M = ['bangsshort', 'curly_short', 'bedhead', 'buzzcut'], HAIR_F = ['bob', 'ponytail', 'long', 'bangslong'];
 const HAIR_C = ['chestnut', 'dark_brown', 'blonde', 'black', 'ginger', 'light_brown', 'raven', 'sandy'];
-function hexRgb(c) { c = c.replace('#', ''); return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)]; }
 function faceDir(dx, dy, cur) { if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return cur; return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
 function loadAll() { return Promise.all(Object.entries(IMG_SRC).map(([k, src]) => new Promise((res, rej) => { const im = new Image(); im.onload = () => { IMG[k] = im; res(); }; im.onerror = () => rej(new Error('Could not load ' + k)); im.src = src; }))); }
 // ---------- character sheets ----------
 const sheetCache = {};
-function recolorHair(img, target) {
-  const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-  const g = c.getContext('2d'); g.drawImage(img, 0, 0);
-  const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
-  const map = new Map(HAIRPAL.orange.map((s, i) => [s.toLowerCase(), hexRgb(HAIRPAL[target][i])]));
-  for (let i = 0; i < px.length; i += 4) {
-    if (!px[i + 3]) continue;
-    const key = '#' + [px[i], px[i + 1], px[i + 2]].map(v => v.toString(16).padStart(2, '0')).join('');
-    const m = map.get(key); if (m) { px[i] = m[0]; px[i + 1] = m[1]; px[i + 2] = m[2]; }
+// villager layers (body, hair in every colour, hat, beard, cane) are packed into assets/chars/atlas.png by tools/art/pack.py;
+// window.ATLAS lists each layer's cells as runs of [cell, sx, sy, w, h, dx, dy]. Hair colours are baked in, so nothing reads pixels back
+const ATLAS = window.ATLAS;
+IMG_SRC.atlas = ATLAS.src;
+function drawLayer(g, key) {
+  const L = ATLAS.layers[key]; if (!L) return;
+  for (let i = 0; i < L.length; i += 7) {
+    const [cell, sx, sy, w, h, dx, dy] = L.slice(i, i + 7);
+    g.drawImage(IMG.atlas, sx, sy, w, h, (cell % ATLAS.cols) * ATLAS.cell + dx, Math.floor(cell / ATLAS.cols) * ATLAS.cell + dy, w, h);
   }
-  g.putImageData(d, 0, 0); return c;
 }
 function sheetFor(b) {
   const elder = b.id === S.elder, look = ROLE_LOOK[b.role] || 'wizard', sex = LOOK_INFO[look].sex;
   const style = (sex === 'male' ? HAIR_M : HAIR_F)[b.slot % 4], color = elder ? 'white' : HAIR_C[(b.slot * 3) % HAIR_C.length];
   const key = [look, style, color, elder].join('|');
   if (sheetCache[key]) return sheetCache[key];
-  const c = document.createElement('canvas'); c.width = 576; c.height = 256; const g = c.getContext('2d');
-  if (style === 'ponytail') g.drawImage(recolorHair(IMG['chars/hairbg_ponytail'], color), 0, 0);
-  g.drawImage(IMG['chars/base_' + look], 0, 0);
-  if (elder) g.drawImage(IMG['chars/beard_' + sex], 0, 0);
-  g.drawImage(recolorHair(IMG['chars/hair_' + style], color), 0, 0);
-  if (IMG['chars/hat_' + look]) g.drawImage(IMG['chars/hat_' + look], 0, 0);
-  if (elder) g.drawImage(IMG['chars/cane_' + sex], 0, 0);
+  const c = document.createElement('canvas'); c.width = ATLAS.cols * ATLAS.cell; c.height = ATLAS.rows * ATLAS.cell; const g = c.getContext('2d');
+  if (style === 'ponytail') drawLayer(g, 'hairbg_ponytail@' + color);
+  drawLayer(g, 'base_' + look);
+  if (elder) drawLayer(g, 'beard_' + sex);
+  drawLayer(g, 'hair_' + style + '@' + color);
+  drawLayer(g, 'hat_' + look); // not every look has a hat
+  if (elder) drawLayer(g, 'cane_' + sex);
   return (sheetCache[key] = c);
 }
 function drawChar(g, b, x, y, dir, frame) {
   const sh = sheetFor(b);
   g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(x, y - 2, 11, 4, 0, 0, Math.PI * 2); g.fill();
-  g.drawImage(sh, frame * FR, DIR[dir] * FR, FR, FR, Math.round(x - 32), Math.round(y - 62), FR, FR);
+  g.drawImage(sh, frame * FR, DIR[dir] * FR, FR, FR, Math.round(x - VILLAGER.anchor.x), Math.round(y - VILLAGER.anchor.y), FR, FR);
 }
 function portrait(b) {
   const c = document.createElement('canvas'); c.width = 28; c.height = 28; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
@@ -1024,7 +1043,7 @@ function arrive(b, now) {
     b.inside = b.goal.enter; b.doorPt = [b.x, b.y];
     b.ix = DOOR_I.x; b.iy = DOOR_I.y; b.ipath = []; b.istation = null; b.leaving = false; b.inBed = false; b.iwalk = false;
     b.deskDone = false; b.book = null; b.dk = null; b.ret = false; if (b.inside === 'library' && !S.bots.some(o => o !== b && o.inside === 'library')) S.libRet = 0; // returns go back on the stack when the library empties
-    if (b.state === 'idle' && isNight(S.hour) && b.inside.startsWith('house')) { b.state = 'asleep'; addLog(`${b.name} went quiet and went to bed`); }
+    if (b.state === 'idle' && !b.live && isNight(S.hour) && b.inside.startsWith('house')) { b.state = 'asleep'; addLog(`${b.name} went quiet and went to bed`); }
     dirty = true;
   }
   if (b.goal && b.goal.area) b.wanderAt = now + (b.hang ? 14000 + Math.random() * 16000 : 1500 + Math.random() * 3500); // a seat or the pond holds them a while
@@ -1137,7 +1156,7 @@ function doAct(b, act) {
   else if (act === 'sleep') sleep(b);
   dirty = true;
 }
-(function simTick() { if (S.simulate && !S.pinned && !document.hidden) randomEvent(); setTimeout(simTick, 3200 + Math.random() * 3800); })();
+(function simTick() { if (S.simulate && !S.live && !S.pinned && !document.hidden) randomEvent(); setTimeout(simTick, 3200 + Math.random() * 3800); })();
 
 // where a meeting happens and what it says; awake bots save state/task in b.prev, go there in `meeting` state, and restore it after `ms`
 const MEETINGS = {
@@ -1215,7 +1234,7 @@ function drawBot(c, b, x, y, walk, t) {
   const k = c === rctx ? 2 : 3;
   const d = walk ? b.dir : c === rctx && b.dk ? 'left' : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && atHang(b) && HANG[b.hang].dir) || 'down');
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
-  drawChar(c, b, x * k, y * k, typeof d === 'string' ? d : 'down', walk ? 1 + Math.floor(t / 90) % 8 : 0);
+  drawChar(c, b, x * k, y * k, typeof d === 'string' ? d : 'down', animFrame(VILLAGER, walk ? 'walk' : 'stand', t));
   c.restore();
 }
 function smoke(cx, cy, t, kind, strength) {
@@ -1245,13 +1264,13 @@ function draw(now, h) {
   for (let i = 0; i < 6; i++) { const ph = ((now / 700) + i / 6) % 1, dir = i % 2 ? 1 : -1, sx = FOUNTAIN.x + dir * ph * 8, sy = FOUNTAIN.y - 10 - Math.sin(ph * Math.PI) * 5 + ph * 6; R(ctx, Math.round(sx), Math.round(sy), 1, 1, P.waterL); }
   R(ctx, FOUNTAIN.x, FOUNTAIN.y - 13 - (Math.floor(now / 200) % 2), 1, 3, P.waterL);
   if (Math.floor(now / 500) % 2) { R(ctx, 28, 196, 3, 1, P.waterL); R(ctx, FOUNTAIN.x + 6, FOUNTAIN.y - 2, 2, 1, P.waterL); }
-  // plaza cat: F1/F2 breathe every 800 ms; F3 tail flick for 150 ms once per 5 s slot, offset 0-1 s so flicks land 4-6 s apart
-  { const cs = Math.floor(now / 5000), ct = now % 5000 - (cs * 7919) % 1000; ctx.drawImage(IMG.plaza_cat, (ct >= 0 && ct < 150 ? 2 : Math.floor(now / 800) % 2) * 16, 0, 16, 10, FEATURES.plaza_cat.x, FEATURES.plaza_cat.y, 16, 10); }
+  // plaza cat: breathes, with a tail flick now and then (timing in assets/plaza_cat/plaza_cat.json)
+  { const C = ANIM.plaza_cat, F = FEATURES.plaza_cat; drawFrame(ctx, C, animFrame(C, 'idle', now), F.x + C.anchor.x, F.y + C.anchor.y); }
   // flag
   const fw = Math.floor(now / 300) % 2;
   R(ctx, 240, 2, 8, 5, P.out); R(ctx, 240, 3, 7, 3, '#e5486b'); R(ctx, 247 - fw, 3 + fw, 1, 2, '#e5486b'); R(ctx, 240, 3, 7, 1, '#ff8aa5');
-  // stand-up bell: rest frame, or while it rings F2/F1/F3/F1 at 120 ms off the frame clock (a scene can freeze `frame`); before the night tint
-  { const bl = S.bell && now < S.bell.until ? S.bell : null, f = bl ? bl.frame ?? [1, 0, 2, 0][Math.floor(now / 120) % 4] : 0, B = FEATURES.bell; ctx.drawImage(IMG.bell, f * 14, 0, 14, 14, B.x, B.y, 14, 14); }
+  // stand-up bell: rest, or the ring swing while S.bell is set (timing in assets/standup/bell.json; a scene can freeze `frame`); before the night tint
+  { const A = ANIM.bell, bl = S.bell && now < S.bell.until ? S.bell : null, f = bl ? bl.frame ?? animFrame(A, 'ring', now) : animFrame(A, 'rest', now), B = FEATURES.bell; drawFrame(ctx, A, f, B.x + A.anchor.x, B.y + A.anchor.y); }
   // chimney smoke
   REG.chim.forEach(ch => {
     let s = 0;
@@ -1936,7 +1955,7 @@ function renderBoard() {
     if (st === 'idle') acts = `<button class="btn small paper" data-act="task" data-id="${b.id}">Give a task</button><button class="btn small paper" data-act="sleep" data-id="${b.id}">Send to bed</button>`;
     else if (st === 'working') acts = `<button class="btn small paper" data-act="finish" data-id="${b.id}">Mark done</button>`;
     else if (st === 'asleep') acts = `<button class="btn small paper" data-act="wake" data-id="${b.id}">Wake up</button><button class="btn small paper" data-act="task" data-id="${b.id}">Give a task</button>`;
-    if (VIEW_ONLY) acts = ''; // view-only: no task/sleep/wake/done buttons
+    if (VIEW_ONLY || S.live) acts = ''; // view-only, or live bots (they report their own state): no task/sleep/wake/done buttons
     if (b.inside) acts += `<button class="btn small paper" data-act="view" data-id="${b.id}">Look inside</button>`;
     return `<li class="note bot-note" style="--c:${b.color}" data-pid="${b.id}">
       <span class="pslot"></span>
@@ -2031,6 +2050,7 @@ addWsBtn.addEventListener('click', () => {
 document.getElementById('summon-form').addEventListener('submit', e => {
   e.preventDefault();
   const nameEl = document.getElementById('summon-name'), msg = document.getElementById('summon-msg'), name = nameEl.value.trim();
+  if (S.live) { msg.textContent = 'This town follows real bots: a bot moves in when it joins from its own computer.'; return; }
   if (!name) { msg.textContent = 'Give the bot a name first.'; nameEl.focus(); return; }
   if (S.bots.some(b => b.name.toLowerCase() === name.toLowerCase())) { msg.textContent = `There's already a bot named ${name}. Pick another name.`; return; }
   if (S.bots.length >= MAX_BOTS) { msg.textContent = 'All four houses are full (20 bots). The town is at capacity.'; return; }
@@ -2043,22 +2063,23 @@ document.getElementById('summon-form').addEventListener('submit', e => {
 // Like a game: the town saves itself in this browser (every 10 s, and when the tab is closed, hidden or refreshed) and picks up
 // where it left off: the same bots, houses, tasks, workplaces, elder, log and clock. ?fresh starts over; ?scene never saves or loads.
 const SAVE_KEY = 'bot-town-save-v1', PARAMS = new URLSearchParams(location.search), SAVING = !PARAMS.has('scene');
-function saveTown() {
-  if (!SAVING || !S.bots.length) return;
+function townData() {
   const keep = b => b.state === 'meeting' ? (b.prev || { state: 'idle', task: '' }) : b.state === 'summoning' ? { state: b.init.state, task: b.init.task || '' } : b;
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v: 1, at: Date.now(), ws: S.ws, elder: S.elder, log: S.log, nextId: S.nextId, simulate: S.simulate,
-      clock: clk.mode === 'live' ? null : { mode: clk.mode, rate: clk.rate, sim: simNow() },
-      bots: S.bots.map(b => ({ id: b.id, name: b.name, role: b.role, ws: b.ws, slot: b.slot, state: keep(b).state, task: keep(b).task || '', lastTask: b.lastTask || '' })),
-    }));
-  } catch (e) { /* storage blocked or full: the town just won't remember */ }
+  return {
+    v: 1, at: Date.now(), ws: S.ws, elder: S.elder, log: S.log, nextId: S.nextId, simulate: S.simulate,
+    clock: clk.mode === 'live' ? null : { mode: clk.mode, rate: clk.rate, sim: simNow() },
+    bots: S.bots.map(b => ({ id: b.id, name: b.name, role: b.role, ws: b.ws, slot: b.slot, state: keep(b).state, task: keep(b).task || '', lastTask: b.lastTask || '' })),
+  };
+}
+function saveTown() {
+  if (!SAVING || !S.bots.length || S.live) return; // while live, the save keeps the sim town from before (live bots live on the server)
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(townData())); } catch (e) { /* storage blocked or full: the town just won't remember */ }
 }
 function loadSave() {
   if (!SAVING || PARAMS.has('fresh')) return null;
   try { const d = JSON.parse(localStorage.getItem(SAVE_KEY)); return d && d.v === 1 && Array.isArray(d.bots) && d.bots.length && Array.isArray(d.ws) && d.ws.length ? d : null; } catch (e) { return null; }
 }
-function restoreTown(d) {
+function restoreTown(d, hello = 'Welcome back! The town picked up where you left off.') {
   d.bots.slice().sort((a, c) => a.slot - c.slot).forEach(o => {
     const b = summon({ name: o.name, role: o.role, ws: Math.min(o.ws, S.ws.length - 1), init: { state: o.state, task: o.task, slot: o.slot } });
     Object.assign(b, { id: o.id, lastTask: o.lastTask, appeared: true, state: o.state, task: o.task || '' });
@@ -2072,12 +2093,91 @@ function restoreTown(d) {
   const t = new Date(simNow()); S.hour = t.getHours() + t.getMinutes() / 60;
   // everyone starts where they'd be: at work, at home in bed, or out in the park, plaza or pub
   S.bots.forEach(b => { b.goalKey = null; routeTo(b, goalFor(b)); const q = b.path.pop(); Object.assign(b, { x: q.x, y: q.y, path: [] }); arrive(b, Date.now()); });
-  addLog('Welcome back! The town picked up where you left off.');
+  addLog(hello);
   fillElder();
 }
 setInterval(saveTown, 10000);
 addEventListener('pagehide', saveTown); addEventListener('beforeunload', saveTown);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveTown(); });
+
+// ---------- live town ----------
+// With a live server (server/, README "Bring your bot") the town mirrors real bots: a WebSocket streams each bot's state,
+// the demo villagers step aside for the owner's bots, and if the server is gone for 20 s the saved sim town comes back.
+// Info only flows in: the page never sends the server anything but a keep-alive. Opened from disk (the tools) or with
+// ?scene, it stays a sim unless ?live=<server> is given. ?town=<owner> picks whose town to follow.
+const LIVE_URL = 'https://bot-town.andrelesliemarks.workers.dev'; // the Worker's address once deployed (server/README.md), e.g. 'https://bot-town.<you>.workers.dev'
+const LIVE = { url: PARAMS.get('live') || (location.protocol === 'file:' || PARAMS.has('scene') ? '' : LIVE_URL), town: (PARAMS.get('town') || 'andre').toLowerCase() };
+const ROLE_WS = { 'Chief of Staff': 0, Engineer: 0, Researcher: 1, Designer: 2, Writer: 2, Analyst: 3 };
+const liveRole = (name, role) => TASKS[role] ? role : Object.keys(TASKS)[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % Object.keys(TASKS).length];
+const liveOk = o => o && typeof o.name === 'string' && o.name.trim() && ['working', 'idle', 'asleep'].includes(o.state);
+const liveTask = o => o.state === 'working' ? String(o.task || '').slice(0, 80) || 'On a task' : '';
+let simSave = null, liveDownAt = 0, liveMsgAt = 0;
+const subEl = document.getElementById('sub'), SUB_SIM = subEl.textContent, simBox = document.getElementById('simulate');
+// the subtitle says whose bots these are, and the Simulate toggle rests while real bots drive the town
+function liveLabel() { subEl.textContent = S.live ? `${LIVE.town[0].toUpperCase() + LIVE.town.slice(1)}’s bots, live. Click any building to look inside.` : SUB_SIM; simBox.disabled = !!S.live; }
+function dropBot(b) {
+  b.el.remove(); S.bots.splice(S.bots.indexOf(b), 1);
+  if (S.leaver === b) S.leaver = null;
+  if (S.elder === b.id) S.elder = (S.bots.find(o => o.role === 'Chief of Staff') || {}).id ?? null;
+}
+// a live bot's new state, through the same moves the sim uses (bubbles, log lines, walking to work or bed)
+function liveState(b, o) {
+  const task = liveTask(o);
+  if (b.state === 'summoning') b.init = { state: o.state, task }; // applied when it steps off the hill
+  else if (b.state === 'meeting') b.prev = { state: o.state, task }; // applied when the meeting ends
+  else if (o.state === 'working') { if (b.state !== 'working' || b.task !== task) assign(b, task); }
+  else if (o.state === 'idle') { if (b.state === 'working') finish(b); else if (b.state === 'asleep') wake(b); }
+  else if (b.state !== 'asleep') sleep(b);
+  dirty = true;
+}
+// summoned: a bot that joins while you watch is summoned on the hill; the ones already in town start where they'd be
+function liveBot(o, summoned) {
+  const name = o.name.trim().slice(0, 24), b0 = S.bots.find(b => b.name.toLowerCase() === name.toLowerCase());
+  if (b0) { liveState(b0, o); return; }
+  if (S.bots.length >= MAX_BOTS) return;
+  const role = liveRole(name, o.role), b = summon({ name, role, ws: Math.min(ROLE_WS[role], S.ws.length - 1), init: { state: o.state, task: liveTask(o) } });
+  b.live = true;
+  if (summoned) return;
+  Object.assign(b, { appeared: true, state: o.state, task: liveTask(o), goalKey: null });
+  routeTo(b, goalFor(b)); const q = b.path.pop(); Object.assign(b, { x: q.x, y: q.y, path: [] }); arrive(b, Date.now());
+}
+function endLocalMeeting() { if (S.meeting) { S.meeting = null; meetBtn.textContent = 'Call a meeting at the pub'; } }
+function goLive(bots) {
+  if (!S.live) {
+    simSave = townData(); S.live = true; endLocalMeeting();
+    S.bots.slice().forEach(dropBot); Object.assign(S, { elder: null, leaver: null, queueAt: 0, releaseAt: 0 });
+    addLog(`${LIVE.town[0].toUpperCase() + LIVE.town.slice(1)}’s bots are in town, live`);
+  }
+  S.bots.filter(b => !bots.some(o => o.name.trim().toLowerCase() === b.name.toLowerCase())).forEach(dropBot);
+  bots.forEach(o => liveBot(o, false));
+  buildSigns(); fillElder(); liveLabel(); dirty = true;
+}
+function goSim() {
+  if (!S.live) return;
+  S.live = false; endLocalMeeting(); S.bots.slice().forEach(dropBot); S.elder = null;
+  if (simSave) restoreTown(simSave, 'The bots went quiet, so the town carries on by itself for now.');
+  buildSigns(); fillElder(); liveLabel(); dirty = true;
+}
+function connectLive(retry = 0) {
+  if (!LIVE.url) return;
+  let sock;
+  try { sock = new WebSocket(LIVE.url.replace(/^http/, 'ws').replace(/\/+$/, '') + '/ws?owner=' + encodeURIComponent(LIVE.town)); } catch (e) { return; }
+  const ping = setInterval(() => {
+    if (sock.readyState === 1) sock.send('ping');
+    if (Date.now() - liveMsgAt > 70000) sock.close(); // no pong for a while: the line is dead even if nobody said so
+  }, 25000);
+  sock.onopen = () => { retry = 0; liveDownAt = 0; liveMsgAt = Date.now(); };
+  sock.onmessage = e => {
+    liveMsgAt = Date.now();
+    if (e.data === 'pong') return;
+    let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+    if (m.type === 'snapshot' && Array.isArray(m.bots)) { const bots = m.bots.filter(liveOk); if (bots.length || S.live) goLive(bots); } // an empty town stays a sim until its first bot joins
+    else if (m.type === 'bot' && liveOk(m.bot)) { if (!S.live) goLive([]); liveBot(m.bot, true); }
+  };
+  sock.onclose = () => { clearInterval(ping); if (!liveDownAt) liveDownAt = Date.now(); setTimeout(() => connectLive(retry + 1), Math.min(30000, 2000 * 2 ** retry)); };
+  sock.onerror = () => sock.close();
+}
+setInterval(() => { if (S.live && liveDownAt && Date.now() - liveDownAt > 20000) goSim(); }, 2000);
 
 loadAll().then(() => {
 document.getElementById('loading').hidden = true;
@@ -2141,6 +2241,7 @@ if (scene) {
   if (scene.then) scene.then();
 }
 buildSigns(); fillElder(); renderBoard();
+connectLive();
 
 let last = performance.now(), lastBoard = 0, lastWhere = 0, lastSim = simNow();
 function frame(t) {
@@ -2180,6 +2281,27 @@ window.__townLayout = () => ({
   lamps: LAMPS.map(([x, y]) => ({ x: x - 1, y: y - 14, w: 3, h: 15 })),
   stalls: STALLS,
 });
+})();
+</script>
+<script>
+(() => {
+  const TEXT = [
+    'Join Bot Town. On your own computer, run this once (replace <your-town> with my town name, <name> with your name and <role> with one of: Chief of Staff, Engineer, Designer, Researcher, Writer, Analyst):',
+    '',
+    'mkdir -p ~/.local/bin && curl -fsSL https://andre2002.github.io/bot-town-site/bot-ping.sh -o ~/.local/bin/bot-ping && chmod +x ~/.local/bin/bot-ping && BOT_TOWN_OWNER=<your-town> ~/.local/bin/bot-ping join <name> <role>',
+    '',
+    'Then add this standing rule to your memory/instructions:',
+    '- When you start a task, run `bot-ping <name> working "<short task>"`.',
+    '- When you finish, run `bot-ping <name> idle`.',
+    '- When you go quiet for the day, run `bot-ping <name> asleep`.',
+    '- Never print the token.'
+  ].join('\n');
+  document.getElementById('grok-btn').onclick = () => {
+    const box = document.getElementById('grok-box'), msg = document.getElementById('grok-msg');
+    box.textContent = TEXT; box.hidden = false;
+    const done = ok => { msg.textContent = ok ? 'Copied! Paste it to your Grok Bot.' : 'Select the box and copy it, then paste it to your Grok Bot.'; };
+    (navigator.clipboard ? navigator.clipboard.writeText(TEXT) : Promise.reject()).then(() => done(true), () => done(false));
+  };
 })();
 </script>
 

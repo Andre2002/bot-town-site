@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bring your bot · Bot Town</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  body { margin: 0; background: #2b2233; color: #f3e9d2; font: 16px/1.55 'IBM Plex Sans', sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1, h2 { font-family: 'Pixelify Sans', sans-serif; color: #ffd27a; }
+  h1 { font-size: 2.2rem; margin: 0 0 4px; }
+  a { color: #8fd3ff; }
+  pre { position: relative; background: #1b1522; border: 2px solid #4a3a55; border-radius: 6px; padding: 12px 14px; overflow-x: auto; font: 13px/1.5 'IBM Plex Mono', monospace; }
+  code { font-family: 'IBM Plex Mono', monospace; background: #1b1522; padding: 1px 4px; border-radius: 3px; }
+  pre code { background: none; padding: 0; }
+  .copy { position: absolute; top: 6px; right: 6px; font: 12px 'Pixelify Sans'; background: #ffd27a; color: #2b2233; border: 0; border-radius: 4px; padding: 3px 8px; cursor: pointer; }
+  .grok { font: 600 18px 'Pixelify Sans', sans-serif; background: #ffd27a; color: #2b2233; border: 0; border-radius: 6px; padding: 12px 22px; cursor: pointer; box-shadow: 0 3px 0 #a87b2a; }
+  #grok-box { white-space: pre-wrap; background: #1b1522; border: 2px solid #4a3a55; border-radius: 6px; padding: 12px 14px; font: 13px/1.5 'IBM Plex Mono', monospace; user-select: all; }
+  .note { background: #3a2e45; border-left: 4px solid #ffd27a; padding: 10px 14px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="./">← back to town</a></p>
+  <h1>Bring your bot</h1>
+  <p>Every owner gets their own town. Your bot tells it when it starts and finishes something, and a villager walks to work, idles, or goes to bed.</p>
+  <p class="note"><b>Nearly free:</b> one tiny HTTP request per task (a ~150-byte POST). No model tokens, no AI calls, nothing to install but a small bash or PowerShell script.</p>
+
+  <h2>Have a Grok Bot?</h2>
+  <p><button class="grok" id="grok-btn" type="button">Connect Grok Bot</button></p>
+  <p id="grok-msg"></p>
+  <div id="grok-box" hidden></div>
+
+  <h2>1. Join (one line)</h2>
+  <pre><code>mkdir -p ~/.local/bin &amp;&amp; curl -fsSL https://andre2002.github.io/bot-town-site/bot-ping.sh -o ~/.local/bin/bot-ping &amp;&amp; chmod +x ~/.local/bin/bot-ping &amp;&amp; BOT_TOWN_OWNER=&lt;your-town&gt; ~/.local/bin/bot-ping join &lt;BotName&gt; Engineer</code></pre>
+  <p>Roles: Chief of Staff, Engineer, Designer, Researcher, Writer, Analyst. The token is saved to <code>~/.config/bot-town/&lt;BotName&gt;.token</code> (only you can read it). The first join claims your town and saves its owner key to <code>~/.config/bot-town/owner.key</code>: keep it, you need it to add more bots.</p>
+  <p>Windows (PowerShell): download <a href="bot-ping.ps1">bot-ping.ps1</a>, then <code>$env:BOT_TOWN_OWNER='&lt;your-town&gt;'; .\bot-ping.ps1 join &lt;BotName&gt; Engineer</code></p>
+
+  <h2>2. Report</h2>
+  <pre><code>bot-ping &lt;BotName&gt; working "Fixing the login bug"
+bot-ping &lt;BotName&gt; idle      # or: asleep</code></pre>
+
+  <h2>Claude Code: automatic, zero model usage</h2>
+  <p>Add to <code>~/.claude/settings.json</code> (or a project's <code>.claude/settings.json</code>). Working when you send a prompt, idle when it stops:</p>
+  <pre><code>"hooks": {
+  "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "bot-ping &lt;BotName&gt; working &gt;/dev/null 2&gt;&amp;1 || true", "timeout": 10 }] }],
+  "Stop": [{ "hooks": [{ "type": "command", "command": "bot-ping &lt;BotName&gt; idle &gt;/dev/null 2&gt;&amp;1 || true", "timeout": 10 }] }]
+}</code></pre>
+
+  <h2>Any other agent</h2>
+  <p>Add one line to its instructions:</p>
+  <pre><code>When you start a task, run `bot-ping &lt;BotName&gt; working "&lt;short task&gt;"`; when you finish, run `bot-ping &lt;BotName&gt; idle`.</code></pre>
+
+  <h2>3. Watch</h2>
+  <p>Open <code>https://andre2002.github.io/bot-town-site/?town=&lt;your-town&gt;</code>. Limits: 20 bots per town, 20 events at once per bot, then one every 3 s. Never put tokens in a repo.</p>
+</main>
+<script>
+  for (const pre of document.querySelectorAll('pre')) {
+    const b = document.createElement('button'); b.className = 'copy'; b.textContent = 'copy';
+    b.onclick = () => navigator.clipboard.writeText(pre.innerText.replace(/copy$/, '').trim()).then(() => { b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1200); });
+    pre.appendChild(b);
+  }
+  const TEXT = [
+    'Join Bot Town. On your own computer, run this once (replace <your-town> with my town name, <name> with your name and <role> with one of: Chief of Staff, Engineer, Designer, Researcher, Writer, Analyst):',
+    '',
+    'mkdir -p ~/.local/bin && curl -fsSL https://andre2002.github.io/bot-town-site/bot-ping.sh -o ~/.local/bin/bot-ping && chmod +x ~/.local/bin/bot-ping && BOT_TOWN_OWNER=<your-town> ~/.local/bin/bot-ping join <name> <role>',
+    '',
+    'Then add this standing rule to your memory/instructions:',
+    '- When you start a task, run `bot-ping <name> working "<short task>"`.',
+    '- When you finish, run `bot-ping <name> idle`.',
+    '- When you go quiet for the day, run `bot-ping <name> asleep`.',
+    '- Never print the token.'
+  ].join('\n');
+  document.getElementById('grok-btn').onclick = () => {
+    const box = document.getElementById('grok-box'), msg = document.getElementById('grok-msg');
+    box.textContent = TEXT; box.hidden = false;
+    const done = ok => { msg.textContent = ok ? 'Copied! Paste it to your Grok Bot.' : 'Select the box and copy it, then paste it to your Grok Bot.'; };
+    (navigator.clipboard ? navigator.clipboard.writeText(TEXT) : Promise.reject()).then(() => done(true), () => done(false));
+  };
+</script>
+</body>
+</html>

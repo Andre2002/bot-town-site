@@ -1,0 +1,9 @@
+{
+  "id": "leaf_piles",
+  "sheet": "leaf_piles.png",
+  "frame": { "w": 16, "h": 7 },
+  "anchor": { "x": 0, "y": 0 },
+  "baseline": 6,
+  "outline": "none",
+  "notes": "Two static variants (pile A, pile B), not an animation. No outline all round on purpose (README): a low pile on the lawn reads softer without one, so check_pixels skips the outline rule."
+}
