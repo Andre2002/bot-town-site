@@ -232,7 +232,11 @@ pre{margin:0;background:#101512;border:2px solid #2d3833;border-radius:3px;paddi
 const W = 480, H = 320, MAX_BOTS = 20;
 // view-only: the public web page (pages.dev or github.io, or ?view to test) only shows the town. Bot state flows one way, bots -> town,
 // so anything that would tell a bot what to do (meetings, tasks, summon, elder, workplaces) is class `cmd`: hidden and off. The bell stays a toy: it only rings the town's own stand-up
-const VIEW_ONLY = /(github\.io|pages\.dev)$/.test(location.hostname) || new URLSearchParams(location.search).has('view');
+// MODE is baked in by tools/publish_site.sh: 'sim' (GitHub Pages, Andre's test site: simulated bots, every control on, never talks
+// to the live server), 'live' (bottown.pages.dev, the playground: only real bots, view-only for visitors). 'auto' (the repo copy,
+// the tools) keeps the old rules: a sim from disk, live when served.
+const MODE = 'sim';
+const VIEW_ONLY = MODE === 'live' || (MODE === 'auto' && /(github\.io|pages\.dev)$/.test(location.hostname)) || new URLSearchParams(location.search).has('view');
 document.body.classList.toggle('view-only', VIEW_ONLY);
 const cv = document.getElementById('town');
 const ctx = cv.getContext('2d');
@@ -245,16 +249,29 @@ const IMG = {};
 const IMG_SRC = { leaf_piles: 'assets/autumn/leaf_piles.png' }; // art loads from its file; villagers from the atlas below
 IMG_SRC.library = 'assets/library/library.png';
 IMG_SRC.desk = 'assets/library_desk/desk.png'; // library check-out desk (room art, not on the map)
-// animated sprites are a PNG sheet + a JSON next to it (frames, fps, anchor, baseline), packed into assets/manifest.js by tools/art/pack.py
+// animated sprites are a PNG sheet + a JSON next to it (frames, per-frame ms, anchor, baseline), packed into assets/manifest.js by tools/art/pack.py
 const ANIM = window.ASSETS || {};
 Object.values(ANIM).forEach(a => { if (a.src) IMG_SRC[a.id] = a.src; });
 const VILLAGER = ANIM.villager, FR = VILLAGER.frame.w, DIR = VILLAGER.rows;
-// the frame of `anim` showing at time t (ms); a frame lasts round(1000 / fps) ms. An `interrupt` (the cat's tail flick) replaces the loop once per every_ms slot, offset by up to jitter_ms
-function animFrame(a, anim, t) {
-  const an = a.anims[anim], it = an.interrupt, ms = p => Math.round(1000 / p.fps);
-  if (it) { const slot = Math.floor(t / it.every_ms), ct = t % it.every_ms - (slot * 7919) % (it.jitter_ms || 1); if (ct >= 0 && ct < it.frames.length * ms(it)) return it.frames[Math.floor(ct / ms(it))]; }
-  return an.fps ? an.frames[Math.floor(t / ms(an)) % an.frames.length] : an.frames[0];
+// timing is per frame: `ms` lists each frame's duration (a longer one is a hold); the older `fps` gives every frame round(1000 / fps) ms
+const frameMs = an => an.ms || an.frames.map(() => an.fps ? Math.round(1000 / an.fps) : 0);
+// where an anim is at time t (ms): i = index in its frames, f = the frame, k = how far through that frame (0-1)
+function animAt(an, t) {
+  const ms = frameMs(an), total = ms.reduce((s, v) => s + v, 0);
+  if (!total) return { i: 0, f: an.frames[0], k: 0 };
+  let r = ((t % total) + total) % total;
+  for (let i = 0; i < ms.length; i++) { if (r < ms[i]) return { i, f: an.frames[i], k: r / ms[i] }; r -= ms[i]; }
+  return { i: 0, f: an.frames[0], k: 0 };
 }
+// the frame of `anim` showing at time t (ms). An `interrupt` (the cat's tail flick) replaces the loop once per every_ms slot, offset by up to jitter_ms
+function animFrame(a, anim, t) {
+  const an = a.anims[anim], it = an.interrupt;
+  if (it) { const len = frameMs(it).reduce((s, v) => s + v, 0), slot = Math.floor(t / it.every_ms), ct = t % it.every_ms - (slot * 7919) % (it.jitter_ms || 1); if (ct >= 0 && ct < len) return animAt(it, ct).f; }
+  return animAt(an, t).f;
+}
+// nobody walks in step: each villager has its own pace and is out of phase with the others (from its name, so it keeps them across reloads)
+const paceOf = name => { const M = VILLAGER.motion, h = strHash(name); return { speed: M.speed[0] + (M.speed[1] - M.speed[0]) * (h % 1000) / 999, phase: (h >>> 10) % M.phase_ms }; };
+const strHash = s => [...String(s)].reduce((h, c) => (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0, 2166136261);
 // draw frame f of a sheet with its anchor on (x, y); frames run left to right, then top to bottom
 function drawFrame(c, a, f, x, y, img = IMG[a.id]) {
   const { w, h } = a.frame, cols = Math.floor(img.width / w);
@@ -303,10 +320,14 @@ function drawLayer(g, key) {
     g.drawImage(IMG.atlas, sx, sy, w, h, (cell % ATLAS.cols) * ATLAS.cell + dx, Math.floor(cell / ATLAS.cols) * ATLAS.cell + dy, w, h);
   }
 }
-function sheetFor(b) {
+// which villager a bot looks like: its role's look, hair style and colour from its slot, white hair and a beard for the elder
+function lookFor(b) {
   const elder = b.id === S.elder, look = ROLE_LOOK[b.role] || 'wizard', sex = LOOK_INFO[look].sex;
   const style = (sex === 'male' ? HAIR_M : HAIR_F)[b.slot % 4], color = elder ? 'white' : HAIR_C[(b.slot * 3) % HAIR_C.length];
-  const key = [look, style, color, elder].join('|');
+  return { elder, look, sex, style, color, key: [look, style, color, elder].join('|') };
+}
+function sheetFor(b) {
+  const { elder, look, sex, style, color, key } = lookFor(b);
   if (sheetCache[key]) return sheetCache[key];
   const c = document.createElement('canvas'); c.width = ATLAS.cols * ATLAS.cell; c.height = ATLAS.rows * ATLAS.cell; const g = c.getContext('2d');
   if (style === 'ponytail') drawLayer(g, 'hairbg_ponytail@' + color);
@@ -317,10 +338,61 @@ function sheetFor(b) {
   if (elder) drawLayer(g, 'cane_' + sex);
   return (sheetCache[key] = c);
 }
-function drawChar(g, b, x, y, dir, frame) {
-  const sh = sheetFor(b);
+// the same villager in four layers, so secondary motion can move them apart: hair behind the body (a ponytail), the body
+// (with beard and cane), the hair, the hat. Composed once per look like sheetFor
+const partsCache = {};
+function partsFor(b) {
+  const { elder, look, sex, style, color, key } = lookFor(b);
+  if (partsCache[key]) return partsCache[key];
+  const part = keys => { const c = document.createElement('canvas'); c.width = ATLAS.cols * ATLAS.cell; c.height = ATLAS.rows * ATLAS.cell; const g = c.getContext('2d'); keys.forEach(k => drawLayer(g, k)); return c; };
+  return (partsCache[key] = {
+    back: part(style === 'ponytail' ? ['hairbg_ponytail@' + color] : []),
+    body: part(['base_' + look, ...(elder ? ['beard_' + sex, 'cane_' + sex] : [])]),
+    hair: part(['hair_' + style + '@' + color]),
+    hat: part(['hat_' + look]),
+  });
+}
+// m (from motion()): bob lifts the whole villager, top moves the upper body (rows above motion.split; + squashes down, - stretches up,
+// the seam row filling the gap), hx/hy place the hair. Whole sheet px only: no scaling, so the pixels stay crisp. No m: the plain sheet
+function drawChar(g, b, x, y, dir, frame, m) {
   g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(x, y - 2, 11, 4, 0, 0, Math.PI * 2); g.fill();
-  g.drawImage(sh, frame * FR, DIR[dir] * FR, FR, FR, Math.round(x - VILLAGER.anchor.x), Math.round(y - VILLAGER.anchor.y), FR, FR);
+  const sx = frame * FR, sy = DIR[dir] * FR, ox = Math.round(x - VILLAGER.anchor.x), oy = Math.round(y - VILLAGER.anchor.y);
+  if (!m) { g.drawImage(sheetFor(b), sx, sy, FR, FR, ox, oy, FR, FR); return; }
+  const p = partsFor(b), sp = VILLAGER.motion.split, lo = oy - m.bob, up = lo + m.top;
+  g.drawImage(p.back, sx, sy, FR, FR, ox + m.hx, oy + m.hy, FR, FR);
+  g.drawImage(p.body, sx, sy + sp, FR, FR - sp, ox, lo + sp, FR, FR - sp);
+  if (m.top < 0) g.drawImage(p.body, sx, sy + sp, FR, 1, ox, up + sp, FR, -m.top);
+  g.drawImage(p.body, sx, sy, FR, sp, ox, up, FR, sp);
+  g.drawImage(p.hair, sx, sy, FR, FR, ox + m.hx, oy + m.hy, FR, FR);
+  g.drawImage(p.hat, sx, sy, FR, FR, ox, up, FR, FR);
+}
+// secondary motion, all from villager.json "motion" and the walk's `lift` keys (none of it is drawn art): an eased bob on the walk,
+// a squash and a little stretch when a villager stops, a 1 px breath now and then while standing, and hair that follows the head a
+// beat late on a spring (and swings on past a stop). t: the villager's own anim clock; now: real time, for the springs
+function motion(b, walking, anim, t, now) {
+  const M = VILLAGER.motion, mo = b.mo || (b.mo = { last: now, walking: false, stopAt: -1e9, hx: 0, vx: 0, hy: 0, vy: 0 });
+  if (now - mo.last > 250) Object.assign(mo, { walking, hx: 0, vx: 0, vy: 0, hy: 0, stopAt: -1e9 }); // not drawn for a while (indoors, another view): no fake stop
+  const dt = Math.min(0.05, Math.max(0, (now - mo.last) / 1000)); mo.last = now;
+  const ease = (a, c, k) => a + (c - a) * (1 - Math.cos(Math.PI * k)) / 2;
+  let bob = 0, top = 0;
+  if (walking) {
+    const an = VILLAGER.anims[anim];
+    if (an.lift) { const { i, k } = animAt(an, t); bob = ease(an.lift[i], an.lift[(i + 1) % an.lift.length], k); }
+  } else {
+    if (mo.walking) { mo.stopAt = now; mo.vx += M.hair.kick * (b.dir === 'right' ? 1 : b.dir === 'left' ? -1 : 0); mo.vy += M.hair.kick * 0.5; }
+    const st = now - mo.stopAt, keys = M.stop.px;
+    if (st < M.stop.ms) { const u = st / M.stop.ms * (keys.length - 1), j = Math.floor(u); top = ease(keys[j], keys[Math.min(j + 1, keys.length - 1)], u - j); }
+    else {
+      const [lo, hi] = M.breath.every_ms, every = lo + strHash(b.name + 'breath') % (hi - lo), ph = (now + (b.phase || 0)) % every;
+      if (ph < M.breath.ms) top = -M.breath.px * Math.sin(Math.PI * ph / M.breath.ms);
+    }
+  }
+  mo.walking = walking;
+  const head = top - bob, H = M.hair;
+  mo.vy += (H.k * (head - mo.hy) - H.damp * mo.vy) * dt; mo.hy += mo.vy * dt;
+  mo.vx += (H.k * (0 - mo.hx) - H.damp * mo.vx) * dt; mo.hx += mo.vx * dt;
+  const r = v => Math.max(-2, Math.min(2, Math.round(v)));
+  return { bob: Math.round(bob), top: Math.round(top), hx: r(mo.hx), hy: Math.round(head) + r(mo.hy - head) };
 }
 function portrait(b) {
   const c = document.createElement('canvas'); c.width = 28; c.height = 28; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
@@ -659,8 +731,7 @@ function drawPub(c) {
   door(c, x + w / 2, wy + wh, 10, 14, '#6e3f22');
   roof(c, x, top, w, 20, ROOFS.slate, { trim: tim, wall: wallC, reg: REG.pubWin, sh: 0.45 });
   [[x + 25, wy + 17], [x + 41, wy + 17]].forEach(([lx, ly]) => { R(c, lx - 1, ly - 1, 4, 5, '#3a3540'); R(c, lx, ly, 2, 3, '#f6d06b'); REG.lanterns.push({ x: lx + 1, y: ly + 1, pub: true }); });
-  R(c, x + w, wy + 5, 6, 1, P.out); R(c, x + w + 2, wy + 6, 8, 8, P.out); R(c, x + w + 3, wy + 7, 6, 6, P.wood);
-  R(c, x + w + 4, wy + 8, 3, 4, '#f2c14e'); R(c, x + w + 4, wy + 8, 3, 1, '#ffffff'); R(c, x + w + 7, wy + 9, 1, 2, '#f2c14e');
+  R(c, x + w, wy + 5, 6, 1, P.out); REG.pubSign = { x: x + w + 2, y: wy + 6 }; // the mug sign hangs from this arm and swings (drawPubSign)
   barrel(c, x + w + 2, wy + 20);
 }
 // pub square with the town task board: ground like the plaza, so props on its paving (the patio lamp) stand on it, not in the pub
@@ -1016,6 +1087,7 @@ function summon({ name, role, ws, init }) {
     state: 'summoning', task: '', x: end[0], y: end[1], dir: 'down', anchor: 'v219', exit: HILL_PTS.slice(0, -1).reverse(),
     path: [], goalKey: 'summon', goal: null, inside: null, bubble: null, spot: null, summonAt: Infinity, appeared: false, init: init || { state: 'idle' }, wanderAt: 0, walking: false,
   };
+  Object.assign(b, paceOf(name));
   b.el = document.createElement('div'); b.el.className = 'bot-tag'; b.el.hidden = true;
   b.el.innerHTML = '<div class="bubble" hidden></div><div class="name"></div>';
   b.el.lastChild.textContent = name;
@@ -1056,7 +1128,7 @@ function update(b, dt, now) {
     else if (b.goal && b.goal.area && now > b.wanderAt && !S.pinned) wander(b, now);
   }
   b.walking = false;
-  let budget = 34 * dt;
+  let budget = 34 * paceBehind(b) * dt;
   while (b.path.length && budget > 0) {
     const p = b.path[0], dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy);
     b.dir = faceDir(dx, dy, b.dir);
@@ -1067,6 +1139,22 @@ function update(b, dt, now) {
       if (!b.path.length) { arrive(b, now); break; }
     } else { b.x += dx / d * budget; b.y += dy / d * budget; budget = 0; }
   }
+}
+// walkers have their own pace, but nobody pushes through someone ahead on the same way: close behind a walker, match its pace, and
+// if two met at a corner too close (a name would sit on the body ahead or behind), drop back until there's a tag's height between them.
+// Head-on walkers just pass
+function paceBehind(b) {
+  const p = b.path[0]; if (!p) return b.speed;
+  const dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
+  let pace = b.speed;
+  S.bots.forEach(o => {
+    if (o === b || o.inside || !o.walking || !o.path[0]) return;
+    const rx = o.x - b.x, ry = o.y - b.y, along = rx * ux + ry * uy, side = Math.abs(rx * uy - ry * ux);
+    const ox = o.path[0].x - o.x, oy = o.path[0].y - o.y;
+    if (along <= 0 || side >= 8 || ox * ux + oy * uy <= 0) return;
+    if (along < 26) pace = Math.min(pace, o.speed * 0.5); else if (along < 34) pace = Math.min(pace, o.speed);
+  });
+  return pace;
 }
 function arrive(b, now) {
   if (!b.arrived) { b.arrived = true; dirty = true; }
@@ -1101,7 +1189,7 @@ function updateInside(b, dt, now) {
     }
   }
   b.iwalk = false;
-  let budget = 30 * dt;
+  let budget = 30 * b.speed * dt;
   while (b.ipath.length && budget > 0) {
     const [px, py] = b.ipath[0], dx = px - b.ix, dy = py - b.iy, d = Math.hypot(dx, dy);
     b.dir = faceDir(dx, dy, b.dir);
@@ -1149,9 +1237,9 @@ function chatTick() {
 }
 (function chatLoop() { chatTick(); setTimeout(chatLoop, 5000 + Math.random() * 5000); })();
 // drawn on the map: a bot sitting on a bench (cut off at the seat, shins over the seat front), skipping stones
-function drawSitter(c, b, h) {
+function drawSitter(c, b, h, now) {
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.beginPath(); c.rect(0, 0, W * 3, (h.seat + 1) * 3); c.clip();
-  drawChar(c, b, b.x * 3, b.y * 3, 'down', 0);
+  drawChar(c, b, b.x * 3, b.y * 3, 'down', 0, motion(b, false, 'stand', 0, now));
   c.restore();
   R(c, b.x - 2, h.seat + 1, 2, 2, '#4a3a3a'); R(c, b.x + 1, h.seat + 1, 2, 2, '#4a3a3a');
 }
@@ -1265,8 +1353,9 @@ function drawHair(c, b, x, hy) {
 function drawBot(c, b, x, y, walk, t) {
   const k = c === rctx ? 2 : 3;
   const d = walk ? b.dir : c === rctx && b.dk ? 'left' : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && atHang(b) && HANG[b.hang].dir) || 'down');
+  const dir = typeof d === 'string' ? d : 'down', anim = walk ? 'walk_' + dir : 'stand', at = (t + b.phase) * b.speed; // its own pace: legs keep up with its speed
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
-  drawChar(c, b, x * k, y * k, typeof d === 'string' ? d : 'down', animFrame(VILLAGER, walk ? 'walk' : 'stand', t));
+  drawChar(c, b, x * k, y * k, dir, animFrame(VILLAGER, anim, at), motion(b, walk, anim, at, t));
   c.restore();
 }
 function smoke(cx, cy, t, kind, strength) {
@@ -1296,10 +1385,12 @@ function draw(now, h) {
   for (let i = 0; i < 6; i++) { const ph = ((now / 700) + i / 6) % 1, dir = i % 2 ? 1 : -1, sx = FOUNTAIN.x + dir * ph * 8, sy = FOUNTAIN.y - 10 - Math.sin(ph * Math.PI) * 5 + ph * 6; R(ctx, Math.round(sx), Math.round(sy), 1, 1, P.waterL); }
   R(ctx, FOUNTAIN.x, FOUNTAIN.y - 13 - (Math.floor(now / 200) % 2), 1, 3, P.waterL);
   if (Math.floor(now / 500) % 2) { R(ctx, 28, 196, 3, 1, P.waterL); R(ctx, FOUNTAIN.x + 6, FOUNTAIN.y - 2, 2, 1, P.waterL); }
+  drawPubSign(ctx, now);
   // plaza cat: breathes, with a tail flick now and then (timing in assets/plaza_cat/plaza_cat.json)
   { const C = ANIM.plaza_cat, F = FEATURES.plaza_cat; drawFrame(ctx, C, animFrame(C, 'idle', now), F.x + C.anchor.x, F.y + C.anchor.y); }
   // flag
-  const fw = Math.floor(now / 300) % 2;
+  const wd = wind(now); flag.ph += Math.min(0.1, Math.max(0, (now - flag.last) / 1000)) * (1.5 + 9 * wd); flag.last = now;
+  const fw = wd < 0.22 ? 1 : +(Math.sin(flag.ph) > 0); // flutters faster in a gust, droops in a lull
   R(ctx, 240, 2, 8, 5, P.out); R(ctx, 240, 3, 7, 3, '#e5486b'); R(ctx, 247 - fw, 3 + fw, 1, 2, '#e5486b'); R(ctx, 240, 3, 7, 1, '#ff8aa5');
   // stand-up bell: rest, or the ring swing while S.bell is set (timing in assets/standup/bell.json; a scene can freeze `frame`); before the night tint
   { const A = ANIM.bell, bl = S.bell && now < S.bell.until ? S.bell : null, f = bl ? bl.frame ?? animFrame(A, 'ring', now) : animFrame(A, 'rest', now), B = FEATURES.bell; drawFrame(ctx, A, f, B.x + A.anchor.x, B.y + A.anchor.y); }
@@ -1325,7 +1416,7 @@ function draw(now, h) {
   for (let i = 0; i < 12; i++) { const an = i / 12 * Math.PI * 2 + now / 2400; R(ctx, Math.round(SLATE.x + Math.cos(an) * 11), Math.round(SLATE.y + Math.sin(an) * 6), 1, 1, summoning ? '#e6fbff' : (i % 3 ? '#5fc7d8' : '#3e8fa0')); }
   // bots
   S.bots.filter(b => !b.inside && (b.state !== 'summoning' || now >= b.summonAt + 1000)).sort((a, c) => a.y - c.y).forEach(b => {
-    if (atHang(b) && HANG[b.hang].pose === 'sit') drawSitter(ctx, b, HANG[b.hang]); else drawBot(ctx, b, Math.round(b.x), Math.round(b.y), b.walking, now);
+    if (atHang(b) && HANG[b.hang].pose === 'sit') drawSitter(ctx, b, HANG[b.hang], now); else drawBot(ctx, b, Math.round(b.x), Math.round(b.y), b.walking, now);
     if (atHang(b) && HANG[b.hang].act) hangFx(ctx, b, now);
   });
   // night tint
@@ -1367,6 +1458,24 @@ function draw(now, h) {
       R(ctx, sx > 0 ? x : x - L + 1, y, L, 1, c); R(ctx, x, sy > 0 ? y : y - L + 1, 1, L, c);
     });
   }
+}
+// wind: slow, irregular gusts (off-beat sines, 0 to about 1). The hall flag flutters on it; the pub sign gets a push from a gust
+// or from a bot walking under it, then swings back and settles (a damped spring, 1 px either way, so it stays pixel art)
+const wind = now => Math.max(0, 0.5 + 0.3 * Math.sin(now / 5300) + 0.25 * Math.sin(now / 2100 + 1.3) + 0.15 * Math.sin(now / 870 + 4.1));
+const flag = { ph: 0, last: 0 }, swing = { a: 0, v: 0, last: 0, gustAt: 0, under: new Set() };
+function drawPubSign(c, now) {
+  const s = REG.pubSign; if (!s) return;
+  const dt = Math.min(0.05, Math.max(0, (now - swing.last) / 1000)); swing.last = now;
+  if (now > swing.gustAt) { if (swing.gustAt) swing.v += (Math.random() < 0.5 ? -1 : 1) * (3 + 6 * wind(now)); swing.gustAt = now + 5000 + Math.random() * 7000; }
+  S.bots.forEach(b => {
+    const under = !b.inside && b.walking && Math.abs(b.x - (s.x + 4)) < 8 && b.y > s.y && b.y - s.y < 40;
+    if (under && !swing.under.has(b.id)) swing.v += (b.dir === 'left' ? -1 : b.dir === 'right' ? 1 : Math.sign(swing.v || 1)) * 7;
+    if (under) swing.under.add(b.id); else swing.under.delete(b.id);
+  });
+  swing.v += (-60 * swing.a - 2.4 * swing.v) * dt; swing.a += swing.v * dt;
+  const x = s.x + Math.max(-1, Math.min(1, Math.round(swing.a))), y = s.y;
+  R(c, x, y, 8, 8, P.out); R(c, x + 1, y + 1, 6, 6, P.wood);
+  R(c, x + 2, y + 2, 3, 4, '#f2c14e'); R(c, x + 2, y + 2, 3, 1, '#ffffff'); R(c, x + 5, y + 3, 1, 2, '#f2c14e');
 }
 function drawBeam(b, now) {
   // the summon beam comes down from the sky, over whatever is below it: the town's signature (Andre, 2026-10-13; see docs/keep.md)
@@ -2140,7 +2249,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveT
 // Info only flows in: the page never sends the server anything but a keep-alive. Opened from disk (the tools) or with
 // ?scene, it stays a sim unless ?live=<server> is given. ?town=<owner> picks whose town to follow.
 const LIVE_URL = 'https://bot-town.andrelesliemarks.workers.dev'; // the Worker's address once deployed (server/README.md), e.g. 'https://bot-town.<you>.workers.dev'
-const LIVE = { url: PARAMS.get('live') || (location.protocol === 'file:' || PARAMS.has('scene') ? '' : LIVE_URL), town: (PARAMS.get('town') || 'andre').toLowerCase() };
+const LIVE = { url: MODE === 'sim' ? '' : MODE === 'live' ? PARAMS.get('live') || LIVE_URL : PARAMS.get('live') || (location.protocol === 'file:' || PARAMS.has('scene') ? '' : LIVE_URL), town: (PARAMS.get('town') || 'andre').toLowerCase() };
 const ROLE_WS = { 'Chief of Staff': 0, Engineer: 0, Researcher: 1, Designer: 2, Writer: 2, Analyst: 3 };
 const liveRole = (name, role) => mapRole(role) || Object.keys(TASKS)[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % Object.keys(TASKS).length];
 const liveOk = o => o && typeof o.name === 'string' && o.name.trim() && ['working', 'idle', 'asleep'].includes(o.state);
@@ -2213,20 +2322,21 @@ function connectLive(retry = 0) {
     liveMsgAt = Date.now();
     if (e.data === 'pong') return;
     let m; try { m = JSON.parse(e.data); } catch (err) { return; }
-    if (m.type === 'snapshot' && Array.isArray(m.bots)) { const bots = m.bots.filter(liveOk); if (bots.length || S.live) goLive(bots, m.elder); } // an empty town stays a sim until its first bot joins
+    if (m.type === 'snapshot' && Array.isArray(m.bots)) { const bots = m.bots.filter(liveOk); if (bots.length || S.live) goLive(bots, m.elder); } // (live mode: goLive already ran at start) an empty town stays a sim until its first bot joins
     else if (m.type === 'bot' && liveOk(m.bot)) { if (!S.live) goLive([]); liveBot(m.bot, true); liveElder(m.elder); }
   };
   sock.onclose = () => { clearInterval(ping); if (!liveDownAt) liveDownAt = Date.now(); setTimeout(() => connectLive(retry + 1), Math.min(30000, 2000 * 2 ** retry)); };
   sock.onerror = () => sock.close();
 }
-setInterval(() => { if (S.live && liveDownAt && Date.now() - liveDownAt > 20000) goSim(); }, 2000);
+setInterval(() => { if (MODE !== 'live' && S.live && liveDownAt && Date.now() - liveDownAt > 20000) goSim(); }, 2000);
 
 loadAll().then(() => {
 document.getElementById('loading').hidden = true;
-const saved = loadSave();
+const saved = MODE === 'live' ? null : loadSave();
 if (saved) S.ws = saved.ws.slice(0, LOT_C.length).map(w => ({ name: String(w.name).slice(0, 18), type: WS_TYPES[w.type] ? w.type : 'forge' }));
 buildBg(); renderWs();
-if (saved) restoreTown(saved); else [
+if (MODE === 'live') { S.simulate = false; simBox.checked = false; simBox.closest('label').hidden = true; goLive([]); }
+else if (saved) restoreTown(saved); else [
   { name: 'Atlas', role: 'Chief of Staff', ws: 0, init: { state: 'working', task: 'Drafting tomorrow’s plan' } },
   { name: 'Bolt', role: 'Engineer', ws: 0, init: { state: 'working', task: 'Running the test suite' } },
   { name: 'Sage', role: 'Researcher', ws: 1, init: { state: 'working', task: 'Reading three new papers' } },
@@ -2306,6 +2416,20 @@ let signKey = '';
 function buildSignsIfChanged() { const k = S.bots.map(b => b.house + ':' + (b.inside || '')).join(',') + S.ws.map(w => w.name).join() + (S.bell && Date.now() < S.bell.until ? S.bell.text : ''); if (k !== signKey) { signKey = k; buildSigns(); } }
 requestAnimationFrame(frame);
 }).catch(err => { document.getElementById('loading').textContent = err.message; });
+// read-only test hook for tools/villager_gif.py: one villager walks right, stops and stands, drawn frame by frame on a clock the tool
+// steps, so the frames are exact (not screen captures). legacy: the old way (one even walk cycle, no secondary motion, one pace for all)
+window.__villagerClip = ({ role = 'Engineer', name = 'Bolt', slot = 1, step = 40, len = 3600, walk = 1500, legacy = false } = {}) => {
+  const c = document.createElement('canvas'); c.width = 270; c.height = 120; const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+  const b = { id: -1, name, role, slot, dir: 'right', ...(legacy ? { speed: 1, phase: 0 } : paceOf(name)) }, out = [], t0 = 1e6;
+  for (let t = 0; t < len; t += step) {
+    const walking = t < walk, x = 14 + 34 * b.speed * Math.min(t, walk) / 1000, at = (t + b.phase) * b.speed;
+    const anim = walking ? (legacy ? 'walk' : 'walk_right') : 'stand';
+    g2.fillStyle = P.grass; g2.fillRect(0, 0, c.width, c.height); g2.fillStyle = P.grassD; for (let i = 0; i < c.width; i += 18) g2.fillRect(i, 102, 9, 3);
+    drawChar(g2, b, Math.round(x) * 3, 100, 'right', animFrame(VILLAGER, anim, legacy ? t : at), legacy ? null : motion(b, walking, anim, at, t0 + t));
+    out.push(c.toDataURL());
+  }
+  return { speed: b.speed, frames: out };
+};
 // read-only layout snapshot for tools/shoot.py (agents read the saved layout.json, not this file)
 window.__townLayout = () => ({
   map: { w: W, h: H },

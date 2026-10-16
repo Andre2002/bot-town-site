@@ -6,8 +6,20 @@
   "anchor": { "x": 32, "y": 62 },
   "baseline": 62,
   "anims": {
-    "stand": { "frames": [0], "fps": 0 },
-    "walk": { "frames": [1, 2, 3, 4, 5, 6, 7, 8], "fps": 11.1111 }
+    "stand": { "frames": [0], "ms": [0] },
+    "walk": { "frames": [1, 2, 3, 4, 5, 6, 7, 8], "ms": [90, 90, 90, 90, 90, 90, 90, 90] },
+    "walk_up": { "frames": [1, 2, 3, 4, 5, 6, 7, 8], "ms": [80, 80, 115, 80, 80, 80, 115, 80], "lift": [2, 1, 0, 1, 2, 1, 0, 1] },
+    "walk_down": { "frames": [1, 2, 3, 4, 5, 6, 7, 8], "ms": [80, 80, 115, 80, 80, 80, 115, 80], "lift": [2, 1, 0, 1, 2, 1, 0, 1] },
+    "walk_left": { "frames": [1, 2, 3, 4, 5, 6, 7, 8], "ms": [115, 80, 80, 80, 115, 80, 80, 80], "lift": [0, 1, 2, 1, 0, 1, 2, 1] },
+    "walk_right": { "frames": [1, 2, 3, 4, 5, 6, 7, 8], "ms": [115, 80, 80, 80, 115, 80, 80, 80], "lift": [0, 1, 2, 1, 0, 1, 2, 1] }
   },
-  "notes": "The villager sheet is composed at runtime (sheetFor in index.html) from the villager atlas (chars/atlas.png, built from chars/layers/ by tools/art/pack.py): 9 columns x 4 rows (rows = facing). Anchor = the feet: the bot's (x, y) in screen px. Frame indexes are columns within the facing's row."
+  "motion": {
+    "split": 44,
+    "stop": { "ms": 320, "px": [0, 2, 1, -1, 0] },
+    "breath": { "every_ms": [2600, 4200], "ms": 900, "px": 1 },
+    "hair": { "k": 320, "damp": 18, "kick": 60 },
+    "speed": [0.86, 1.14],
+    "phase_ms": 1000
+  },
+  "notes": "The villager sheet is composed at runtime (sheetFor/partsFor in index.html) from the villager atlas (chars/atlas.png, built from chars/layers/ by tools/art/pack.py): 9 columns x 4 rows (rows = facing). Anchor = the feet. Frame indexes are columns within the facing's row. walk_<facing>: the LPC frames already dip the head 1 px on one frame per step (indexes 2 and 6 facing up/down, 0 and 4 facing left/right); those frames hold longer (the weight lands) and `lift` (sheet px, eased between frames in code) is 0 there and highest at the passing frames. `walk` is the old even cycle, kept for the before/after GIF. motion: rows above `split` are the upper body; `stop` squashes it (px down, eased through the keys) when a villager stops; `breath` lifts it 1 px now and then while standing; `hair` is a spring (stiffness, damping, sideways kick on a stop) the hair layer follows the head with; each villager walks at a speed in `speed` and is up to `phase_ms` out of step, both from its name."
 }
