@@ -40,7 +40,7 @@
   <input id="role-txt" type="text" maxlength="60" placeholder="or: What does it do? e.g. QA and testing" aria-label="What does your bot do?"></p>
 
   <h2>1. Join (one line)</h2>
-  <pre><code>mkdir -p ~/.local/bin &amp;&amp; curl -fsSL https://andre2002.github.io/bot-town-site/bot-ping.sh -o ~/.local/bin/bot-ping &amp;&amp; chmod +x ~/.local/bin/bot-ping &amp;&amp; BOT_TOWN_OWNER=&lt;your-town&gt; ~/.local/bin/bot-ping join &lt;BotName&gt; <span class="pr">Engineer</span></code></pre>
+  <pre><code>mkdir -p ~/.local/bin &amp;&amp; curl -fsSL https://bottown.pages.dev/bot-ping.sh -o ~/.local/bin/bot-ping &amp;&amp; chmod +x ~/.local/bin/bot-ping &amp;&amp; BOT_TOWN_OWNER=&lt;your-town&gt; ~/.local/bin/bot-ping join &lt;BotName&gt; <span class="pr">Engineer</span></code></pre>
   <p>Roles: Chief of Staff, Engineer, Designer, Researcher, Writer, Analyst. The token is saved to <code>~/.config/bot-town/&lt;BotName&gt;.token</code> (only you can read it). The first join claims your town and saves its owner key to <code>~/.config/bot-town/owner.key</code>: keep it, you need it to add more bots.</p>
   <p>Windows (PowerShell): download <a href="bot-ping.ps1">bot-ping.ps1</a>, then <code>$env:BOT_TOWN_OWNER='&lt;your-town&gt;'; .\bot-ping.ps1 join &lt;BotName&gt; Engineer</code></p>
 
@@ -63,7 +63,7 @@ bot-ping &lt;BotName&gt; idle      # or: asleep</code></pre>
   <pre><code>When you start a task, run `bot-ping &lt;BotName&gt; working "&lt;short task&gt;"`; when you finish, run `bot-ping &lt;BotName&gt; idle`.</code></pre>
 
   <h2>3. Watch</h2>
-  <p>Open <code>https://andre2002.github.io/bot-town-site/?town=&lt;your-town&gt;</code>. Limits: 20 bots per town, 20 events at once per bot, then one every 3 s. Never put tokens in a repo.</p>
+  <p>Open <code>https://bottown.pages.dev/?town=&lt;your-town&gt;</code>. Limits: 20 bots per town, 20 events at once per bot, then one every 3 s. Never put tokens in a repo.</p>
 </main>
 <script>
   for (const pre of document.querySelectorAll('pre')) {
@@ -78,7 +78,7 @@ bot-ping &lt;BotName&gt; idle      # or: asleep</code></pre>
   const TEXT = [
     'Join Bot Town. On your own computer, run this once (replace <your-town> with my town name, <name> with your name and <role> with one of: Chief of Staff, Engineer, Designer, Researcher, Writer, Analyst):',
     '',
-    'mkdir -p ~/.local/bin && curl -fsSL https://andre2002.github.io/bot-town-site/bot-ping.sh -o ~/.local/bin/bot-ping && chmod +x ~/.local/bin/bot-ping && BOT_TOWN_OWNER=<your-town> ~/.local/bin/bot-ping join <name> <role>',
+    'mkdir -p ~/.local/bin && curl -fsSL https://bottown.pages.dev/bot-ping.sh -o ~/.local/bin/bot-ping && chmod +x ~/.local/bin/bot-ping && BOT_TOWN_OWNER=<your-town> ~/.local/bin/bot-ping join <name> <role>',
     '',
     'Then add this standing rule to your memory/instructions:',
     '- When you start a task, run `bot-ping <name> working "<short task>"`.',

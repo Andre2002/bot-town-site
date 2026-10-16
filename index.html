@@ -230,9 +230,9 @@ pre{margin:0;background:#101512;border:2px solid #2d3833;border-radius:3px;paddi
 <script>
 (() => {
 const W = 480, H = 320, MAX_BOTS = 20;
-// view-only: the public web page (github.io, or ?view to test) only shows the town. Bot state flows one way, bots -> town,
+// view-only: the public web page (pages.dev or github.io, or ?view to test) only shows the town. Bot state flows one way, bots -> town,
 // so anything that would tell a bot what to do (meetings, tasks, summon, elder, workplaces) is class `cmd`: hidden and off. The bell stays a toy: it only rings the town's own stand-up
-const VIEW_ONLY = location.hostname.endsWith('github.io') || new URLSearchParams(location.search).has('view');
+const VIEW_ONLY = /(github\.io|pages\.dev)$/.test(location.hostname) || new URLSearchParams(location.search).has('view');
 document.body.classList.toggle('view-only', VIEW_ONLY);
 const cv = document.getElementById('town');
 const ctx = cv.getContext('2d');
@@ -2330,7 +2330,7 @@ window.__townLayout = () => ({
   const TEXT = [
     'Join Bot Town. On your own computer, run this once (replace <your-town> with my town name, <name> with your name and <role> with one of: Chief of Staff, Engineer, Designer, Researcher, Writer, Analyst):',
     '',
-    'mkdir -p ~/.local/bin && curl -fsSL https://andre2002.github.io/bot-town-site/bot-ping.sh -o ~/.local/bin/bot-ping && chmod +x ~/.local/bin/bot-ping && BOT_TOWN_OWNER=<your-town> ~/.local/bin/bot-ping join <name> <role>',
+    'mkdir -p ~/.local/bin && curl -fsSL https://bottown.pages.dev/bot-ping.sh -o ~/.local/bin/bot-ping && chmod +x ~/.local/bin/bot-ping && BOT_TOWN_OWNER=<your-town> ~/.local/bin/bot-ping join <name> <role>',
     '',
     'Then add this standing rule to your memory/instructions:',
     '- When you start a task, run `bot-ping <name> working "<short task>"`.',
