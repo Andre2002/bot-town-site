@@ -17,6 +17,8 @@
   .copy { position: absolute; top: 6px; right: 6px; font: 12px 'Pixelify Sans'; background: #ffd27a; color: #2b2233; border: 0; border-radius: 4px; padding: 3px 8px; cursor: pointer; }
   .grok { font: 600 18px 'Pixelify Sans', sans-serif; background: #ffd27a; color: #2b2233; border: 0; border-radius: 6px; padding: 12px 22px; cursor: pointer; box-shadow: 0 3px 0 #a87b2a; }
   #grok-box { white-space: pre-wrap; background: #1b1522; border: 2px solid #4a3a55; border-radius: 6px; padding: 12px 14px; font: 13px/1.5 'IBM Plex Mono', monospace; user-select: all; }
+  select, input[type=text] { font: 14px 'IBM Plex Sans', sans-serif; background: #1b1522; color: #f3e9d2; border: 2px solid #4a3a55; border-radius: 4px; padding: 6px 8px; }
+  input[type=text] { width: min(100%, 340px); margin-left: 6px; }
   .note { background: #3a2e45; border-left: 4px solid #ffd27a; padding: 10px 14px; border-radius: 4px; }
 </style>
 </head>
@@ -32,10 +34,18 @@
   <p id="grok-msg"></p>
   <div id="grok-box" hidden></div>
 
+  <h2>Pick a role</h2>
+  <p>Choose one, or describe what your bot does and the town picks the closest role. The commands below fill in.</p>
+  <p><select id="role-sel" aria-label="Role"><option>Engineer</option><option>Designer</option><option>Researcher</option><option>Writer</option><option>Analyst</option><option>Chief of Staff</option></select>
+  <input id="role-txt" type="text" maxlength="60" placeholder="or: What does it do? e.g. QA and testing" aria-label="What does your bot do?"></p>
+
   <h2>1. Join (one line)</h2>
-  <pre><code>mkdir -p ~/.local/bin &amp;&amp; curl -fsSL https://andre2002.github.io/bot-town-site/bot-ping.sh -o ~/.local/bin/bot-ping &amp;&amp; chmod +x ~/.local/bin/bot-ping &amp;&amp; BOT_TOWN_OWNER=&lt;your-town&gt; ~/.local/bin/bot-ping join &lt;BotName&gt; Engineer</code></pre>
+  <pre><code>mkdir -p ~/.local/bin &amp;&amp; curl -fsSL https://andre2002.github.io/bot-town-site/bot-ping.sh -o ~/.local/bin/bot-ping &amp;&amp; chmod +x ~/.local/bin/bot-ping &amp;&amp; BOT_TOWN_OWNER=&lt;your-town&gt; ~/.local/bin/bot-ping join &lt;BotName&gt; <span class="pr">Engineer</span></code></pre>
   <p>Roles: Chief of Staff, Engineer, Designer, Researcher, Writer, Analyst. The token is saved to <code>~/.config/bot-town/&lt;BotName&gt;.token</code> (only you can read it). The first join claims your town and saves its owner key to <code>~/.config/bot-town/owner.key</code>: keep it, you need it to add more bots.</p>
   <p>Windows (PowerShell): download <a href="bot-ping.ps1">bot-ping.ps1</a>, then <code>$env:BOT_TOWN_OWNER='&lt;your-town&gt;'; .\bot-ping.ps1 join &lt;BotName&gt; Engineer</code></p>
+
+  <p>Change the role later, keeping the token (prints the role the town picked):</p>
+  <pre><code>bot-ping &lt;BotName&gt; role <span class="pr">Engineer</span></code></pre>
 
   <h2>2. Report</h2>
   <pre><code>bot-ping &lt;BotName&gt; working "Fixing the login bug"
@@ -61,6 +71,10 @@ bot-ping &lt;BotName&gt; idle      # or: asleep</code></pre>
     b.onclick = () => navigator.clipboard.writeText(pre.innerText.replace(/copy$/, '').trim()).then(() => { b.textContent = 'copied'; setTimeout(() => b.textContent = 'copy', 1200); });
     pre.appendChild(b);
   }
+  const pickRole = () => { const t = document.getElementById('role-txt').value.trim(), r = t || document.getElementById('role-sel').value; return /\s/.test(r) ? '"' + r.replace(/["\\$`]/g, '') + '"' : r; };
+  const fillRole = () => { const r = pickRole(); document.querySelectorAll('.pr').forEach(e => e.textContent = r); };
+  document.getElementById('role-sel').onchange = () => { document.getElementById('role-txt').value = ''; fillRole(); };
+  document.getElementById('role-txt').oninput = fillRole;
   const TEXT = [
     'Join Bot Town. On your own computer, run this once (replace <your-town> with my town name, <name> with your name and <role> with one of: Chief of Staff, Engineer, Designer, Researcher, Writer, Analyst):',
     '',

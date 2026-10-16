@@ -17,6 +17,8 @@
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.45;padding-inline:16px;padding-block:20px 32px}
 [hidden]{display:none!important}
 .view-only .cmd{display:none!important}
+select option{background:#121815;color:var(--fg)}
+.elder select option{background:var(--paper);color:var(--ink)}
 .wrap{max-width:1296px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 header.top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
 h1{font-family:var(--display);font-weight:600;font-size:30px;letter-spacing:.02em;margin:0;color:var(--accent);text-wrap:balance}
@@ -163,6 +165,7 @@ pre{margin:0;background:#101512;border:2px solid #2d3833;border-radius:3px;paddi
             <div class="field"><label for="summon-role">Role</label>
               <select id="summon-role"><option value="Researcher">Researcher (wizard)</option><option value="Designer">Designer (artisan)</option><option value="Engineer">Engineer (blacksmith)</option><option value="Writer">Writer (scribe)</option><option value="Analyst">Analyst (alchemist)</option><option value="Chief of Staff">Chief of Staff (steward)</option></select></div>
           </div>
+          <div class="field"><label for="summon-what">What does it do? (optional)</label><input type="text" id="summon-what" maxlength="60" placeholder="e.g. QA and testing: picks the closest role"></div>
           <div class="field"><label for="summon-ws">Works at</label><select id="summon-ws"></select></div>
           <div class="row"><button class="btn" type="submit">Summon</button><span class="count" id="bot-count"></span></div>
           <p class="msg" id="summon-msg" aria-live="polite"></p>
@@ -171,6 +174,10 @@ pre{margin:0;background:#101512;border:2px solid #2d3833;border-radius:3px;paddi
           <h2>Workplaces</h2>
           <div class="ws-list" id="ws-list"></div>
           <div class="row"><button class="btn" id="add-ws" type="button">Build on an empty lot</button></div>
+        </div>
+        <div class="panel">
+          <h2>Roles in town</h2>
+          <ul class="map-list" id="role-list"></ul>
         </div>
         <div class="panel">
           <h2>How real bots plug in</h2>
@@ -254,6 +261,30 @@ function drawFrame(c, a, f, x, y, img = IMG[a.id]) {
   c.drawImage(img, (f % cols) * w, Math.floor(f / cols) * h, w, h, Math.round(x - a.anchor.x), Math.round(y - a.anchor.y), w, h);
 }
 const ROLE_LOOK = { 'Chief of Staff': 'steward', 'Engineer': 'blacksmith', 'Designer': 'artisan', 'Researcher': 'wizard', 'Writer': 'scribe', 'Analyst': 'alchemist' };
+// a few words ("QA and testing") -> the closest of the six roles; same keyword lists as server/src/roles.js
+const ROLE_WORDS = {
+  'Chief of Staff': ['chief', 'steward', 'admin', 'elder', 'manag', 'coordinat', 'boss', 'organi'],
+  Engineer: ['cod', 'dev', 'build', 'engineer', 'program', 'lead', 'backend', 'frontend'],
+  Designer: ['animat', 'motion', 'art', 'ui', 'ux', 'design', 'sprite', 'pixel', 'draw'],
+  Researcher: ['research', 'scout', 'investigat', 'explor'],
+  Writer: ['writ', 'docs', 'doc', 'copy', 'edit', 'blog', 'author'],
+  Analyst: ['qa', 'test', 'inspect', 'review', 'analy', 'audit', 'metric', 'data'],
+};
+function mapRole(text) {
+  const t = String(text == null ? '' : text).trim().toLowerCase().slice(0, 80), roles = Object.keys(ROLE_LOOK);
+  if (!t) return null;
+  const exact = roles.find(r => r.toLowerCase() === t);
+  if (exact) return exact;
+  const score = {};
+  t.split(/[^a-z]+/).filter(Boolean).forEach((w, i) => {
+    const r = roles.find(r => ROLE_WORDS[r].some(k => w.startsWith(k)));
+    if (r) (score[r] = score[r] || { n: 0, i }).n++;
+  });
+  const best = Object.entries(score).sort((a, b) => b[1].n - a[1].n || a[1].i - b[1].i)[0];
+  return best ? best[0] : null;
+}
+// the town elder is always the Chief of Staff (steward look), whatever chose them: sim, the dropdown, a save or the live server
+function setElder(id) { S.elder = id; const b = S.bots.find(o => o.id === id); if (b) b.role = 'Chief of Staff'; }
 const LOOK_INFO = { steward: { sex: 'male', title: 'Steward' }, blacksmith: { sex: 'male', title: 'Blacksmith' }, artisan: { sex: 'female', title: 'Artisan' }, wizard: { sex: 'female', title: 'Wizard' }, scribe: { sex: 'female', title: 'Scribe' }, alchemist: { sex: 'male', title: 'Alchemist' } };
 const HAIR_M = ['bangsshort', 'curly_short', 'bedhead', 'buzzcut'], HAIR_F = ['bob', 'ponytail', 'long', 'bangslong'];
 const HAIR_C = ['chestnut', 'dark_brown', 'blonde', 'black', 'ginger', 'light_brown', 'raven', 'sandy'];
@@ -1204,6 +1235,7 @@ const LOOKS = {
   'Analyst': { title: 'Alchemist', body: '#2d6673', sleeve: '#2d6673', robe: true, trim: '#c9a24a', hat: 'goggles' },
 };
 const lookOf = b => LOOKS[b.role] || LOOKS.Researcher;
+document.getElementById('role-list').innerHTML = Object.entries(LOOKS).map(([r, l]) => `<li>${r} <small>(${l.title})</small></li>`).join('');
 function drawHat(c, b, L, x, hy, crown) {
   if (crown) { R(c, x - 4, hy - 3, 9, 3, P.out); R(c, x - 3, hy - 2, 7, 2, '#f2c14e'); R(c, x - 3, hy - 4, 1, 2, '#f2c14e'); R(c, x, hy - 4, 1, 2, '#f2c14e'); R(c, x + 3, hy - 4, 1, 2, '#f2c14e'); R(c, x, hy - 2, 1, 1, '#e5486b'); return; }
   if (L.hat === 'wizard') {
@@ -2018,7 +2050,7 @@ document.getElementById('names').addEventListener('change', e => screenEl.classL
 const elderSel = document.getElementById('elder');
 function fillElder() { elderSel.innerHTML = S.bots.map(b => `<option value="${b.id}">${esc(b.name)}</option>`).join(''); if (S.elder != null) elderSel.value = String(S.elder); }
 elderSel.addEventListener('change', () => {
-  S.elder = +elderSel.value; const b = S.bots.find(o => o.id === S.elder);
+  setElder(+elderSel.value); const b = S.bots.find(o => o.id === S.elder);
   if (b) { say(b, 'I’ll take Town Hall.'); addLog(`${b.name} is now the town elder`); }
   dirty = true;
 });
@@ -2054,8 +2086,10 @@ document.getElementById('summon-form').addEventListener('submit', e => {
   if (!name) { msg.textContent = 'Give the bot a name first.'; nameEl.focus(); return; }
   if (S.bots.some(b => b.name.toLowerCase() === name.toLowerCase())) { msg.textContent = `There's already a bot named ${name}. Pick another name.`; return; }
   if (S.bots.length >= MAX_BOTS) { msg.textContent = 'All four houses are full (20 bots). The town is at capacity.'; return; }
-  summon({ name, role: document.getElementById('summon-role').value, ws: +wsSel.value });
-  msg.textContent = ''; nameEl.value = '';
+  const whatEl = document.getElementById('summon-what'), what = whatEl.value.trim(), role = what ? mapRole(what) : document.getElementById('summon-role').value;
+  if (!role) { msg.textContent = `I can't tell which role "${what}" is. Try a word like research, design, code, write, QA or admin, or pick one from the list.`; whatEl.focus(); return; }
+  summon({ name, role, ws: +wsSel.value });
+  msg.textContent = ''; nameEl.value = ''; whatEl.value = '';
 });
 
 // ---------- boot ----------
@@ -2084,7 +2118,7 @@ function restoreTown(d, hello = 'Welcome back! The town picked up where you left
     const b = summon({ name: o.name, role: o.role, ws: Math.min(o.ws, S.ws.length - 1), init: { state: o.state, task: o.task, slot: o.slot } });
     Object.assign(b, { id: o.id, lastTask: o.lastTask, appeared: true, state: o.state, task: o.task || '' });
   });
-  S.nextId = Math.max(d.nextId || 1, ...S.bots.map(b => b.id + 1)); S.elder = S.bots.some(b => b.id === d.elder) ? d.elder : S.elder;
+  S.nextId = Math.max(d.nextId || 1, ...S.bots.map(b => b.id + 1)); setElder(S.bots.some(b => b.id === d.elder) ? d.elder : S.elder);
   S.log = Array.isArray(d.log) ? d.log.slice(0, 16) : []; S.simulate = d.simulate !== false; document.getElementById('simulate').checked = S.simulate;
   if (d.clock) {
     Object.assign(clk, { anchorReal: Date.now(), anchorSim: d.clock.sim, rate: d.clock.rate, mode: d.clock.mode });
@@ -2108,7 +2142,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveT
 const LIVE_URL = 'https://bot-town.andrelesliemarks.workers.dev'; // the Worker's address once deployed (server/README.md), e.g. 'https://bot-town.<you>.workers.dev'
 const LIVE = { url: PARAMS.get('live') || (location.protocol === 'file:' || PARAMS.has('scene') ? '' : LIVE_URL), town: (PARAMS.get('town') || 'andre').toLowerCase() };
 const ROLE_WS = { 'Chief of Staff': 0, Engineer: 0, Researcher: 1, Designer: 2, Writer: 2, Analyst: 3 };
-const liveRole = (name, role) => TASKS[role] ? role : Object.keys(TASKS)[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % Object.keys(TASKS).length];
+const liveRole = (name, role) => mapRole(role) || Object.keys(TASKS)[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % Object.keys(TASKS).length];
 const liveOk = o => o && typeof o.name === 'string' && o.name.trim() && ['working', 'idle', 'asleep'].includes(o.state);
 const liveTask = o => o.state === 'working' ? String(o.task || '').slice(0, 80) || 'On a task' : '';
 let simSave = null, liveDownAt = 0, liveMsgAt = 0;
@@ -2133,7 +2167,7 @@ function liveState(b, o) {
 // summoned: a bot that joins while you watch is summoned on the hill; the ones already in town start where they'd be
 function liveBot(o, summoned) {
   const name = o.name.trim().slice(0, 24), b0 = S.bots.find(b => b.name.toLowerCase() === name.toLowerCase());
-  if (b0) { liveState(b0, o); return; }
+  if (b0) { const r = mapRole(o.role); if (r && r !== b0.role) { b0.role = r; dirty = true; } liveState(b0, o); return; }
   if (S.bots.length >= MAX_BOTS) return;
   const role = liveRole(name, o.role), b = summon({ name, role, ws: Math.min(ROLE_WS[role], S.ws.length - 1), init: { state: o.state, task: liveTask(o) } });
   b.live = true;
@@ -2142,7 +2176,14 @@ function liveBot(o, summoned) {
   routeTo(b, goalFor(b)); const q = b.path.pop(); Object.assign(b, { x: q.x, y: q.y, path: [] }); arrive(b, Date.now());
 }
 function endLocalMeeting() { if (S.meeting) { S.meeting = null; meetBtn.textContent = 'Call a meeting at the pub'; } }
-function goLive(bots) {
+// live mode follows the server's elder (undefined: an older server that doesn't say)
+function liveElder(name) {
+  if (name === undefined) return;
+  const b = name && S.bots.find(o => o.name.toLowerCase() === String(name).toLowerCase());
+  if (b) setElder(b.id); else S.elder = null;
+  fillElder(); dirty = true;
+}
+function goLive(bots, elder) {
   if (!S.live) {
     simSave = townData(); S.live = true; endLocalMeeting();
     S.bots.slice().forEach(dropBot); Object.assign(S, { elder: null, leaver: null, queueAt: 0, releaseAt: 0 });
@@ -2150,6 +2191,7 @@ function goLive(bots) {
   }
   S.bots.filter(b => !bots.some(o => o.name.trim().toLowerCase() === b.name.toLowerCase())).forEach(dropBot);
   bots.forEach(o => liveBot(o, false));
+  liveElder(elder);
   buildSigns(); fillElder(); liveLabel(); dirty = true;
 }
 function goSim() {
@@ -2171,8 +2213,8 @@ function connectLive(retry = 0) {
     liveMsgAt = Date.now();
     if (e.data === 'pong') return;
     let m; try { m = JSON.parse(e.data); } catch (err) { return; }
-    if (m.type === 'snapshot' && Array.isArray(m.bots)) { const bots = m.bots.filter(liveOk); if (bots.length || S.live) goLive(bots); } // an empty town stays a sim until its first bot joins
-    else if (m.type === 'bot' && liveOk(m.bot)) { if (!S.live) goLive([]); liveBot(m.bot, true); }
+    if (m.type === 'snapshot' && Array.isArray(m.bots)) { const bots = m.bots.filter(liveOk); if (bots.length || S.live) goLive(bots, m.elder); } // an empty town stays a sim until its first bot joins
+    else if (m.type === 'bot' && liveOk(m.bot)) { if (!S.live) goLive([]); liveBot(m.bot, true); liveElder(m.elder); }
   };
   sock.onclose = () => { clearInterval(ping); if (!liveDownAt) liveDownAt = Date.now(); setTimeout(() => connectLive(retry + 1), Math.min(30000, 2000 * 2 ** retry)); };
   sock.onerror = () => sock.close();

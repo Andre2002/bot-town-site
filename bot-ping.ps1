@@ -1,6 +1,7 @@
 # bot-ping: report a bot's state to Bot Town. No dependencies (PowerShell 5+), no AI calls. Port of bot-ping.sh.
 #   bot-ping.ps1 join <name> [role]        token saved to ~/.config/bot-town/<name>.token (user-only)
 #   bot-ping.ps1 <name> working "task"     or: bot-ping.ps1 <name> idle | asleep
+#   bot-ping.ps1 <name> role <Role or a few words>   change the role, keep the token
 # Env: BOT_TOWN_OWNER, BOT_TOWN_OWNER_KEY, BOT_TOWN_URL. Never prints tokens.
 $ErrorActionPreference = 'Stop'
 $Url = if ($env:BOT_TOWN_URL) { $env:BOT_TOWN_URL } else { 'https://bot-town.andrelesliemarks.workers.dev' }
@@ -29,8 +30,15 @@ if ($args[0] -eq 'join') {
   "$name joined town '$own'. Token saved to $(Join-Path $Dir "$name.token")"; exit 0
 }
 $name = $args[0]; $state = $args[1]; $task = $args[2]
-if ($state -notin 'working','idle','asleep') { Die 'state must be working, idle or asleep' }
+if ($state -notin 'working','idle','asleep','role') { Die 'state must be working, idle or asleep' }
 $tf = Join-Path $Dir "$name.token"; if (-not (Test-Path $tf)) { Die "no token for '$name'; run: bot-ping.ps1 join `"$name`" <role>" }
+if ($state -eq 'role') {
+  if (-not $task) { Die 'usage: bot-ping.ps1 <name> role <Role or a few words>' }
+  $rb = @{ owner = (Owner); bot = $name; role = $task.Substring(0, [Math]::Min(80, $task.Length)) }
+  try { $r = Invoke-RestMethod -Method Post -Uri "$Url/role" -Headers @{ Authorization = "Bearer $((Get-Content -Raw $tf).Trim())" } -ContentType 'application/json' -Body ($rb | ConvertTo-Json -Compress) -TimeoutSec 10 }
+  catch { Die "role change failed: $($_.ErrorDetails.Message)" }
+  "$name is now $($r.role)"; exit 0
+}
 $body = @{ owner = (Owner); bot = $name; state = $state }
 if ($task) { $body.task = $task.Substring(0, [Math]::Min(80, $task.Length)) }
 try { Invoke-RestMethod -Method Post -Uri "$Url/event" -Headers @{ Authorization = "Bearer $((Get-Content -Raw $tf).Trim())" } -ContentType 'application/json' -Body ($body | ConvertTo-Json -Compress) -TimeoutSec 5 | Out-Null }

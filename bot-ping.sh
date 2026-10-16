@@ -2,6 +2,7 @@
 # bot-ping: report a bot's state to Bot Town. Zero dependencies (bash + curl), no AI calls.
 #   bot-ping join <name> [role]          get a token, saved to ~/.config/bot-town/<name>.token (chmod 600)
 #   bot-ping <name> working "task"       or: bot-ping <name> idle | asleep
+#   bot-ping <name> role <Role or a few words, e.g. "QA and testing">   change the role, keep the token
 # Env: BOT_TOWN_OWNER (your town; saved after the first join), BOT_TOWN_OWNER_KEY (needed to add bots to a
 # claimed town; the first join saves it to ~/.config/bot-town/owner.key), BOT_TOWN_URL (default: the live server).
 # Roles: Chief of Staff, Engineer, Designer, Researcher, Writer, Analyst. Never prints tokens.
@@ -9,7 +10,7 @@ set -u
 URL="${BOT_TOWN_URL:-https://bot-town.andrelesliemarks.workers.dev}"
 DIR="${BOT_TOWN_DIR:-$HOME/.config/bot-town}"
 die() { echo "bot-ping: $*" >&2; exit 1; }
-usage() { sed -n '3,4p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '3,5p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 esc() { local s=${1//\\/\\\\}; s=${s//\"/\\\"}; printf '%s' "$s" | tr -d '\000-\037'; }
 urlenc() { local s=$1 o= c i; for ((i=0;i<${#s};i++)); do c=${s:i:1}; case $c in [A-Za-z0-9._~-]) o+=$c;; ' ') o+=%20;; *) o+=$(printf '%%%02X' "'$c");; esac; done; printf '%s' "$o"; }
 field() { sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p"; }
@@ -35,6 +36,15 @@ if [ "$1" = join ]; then
 fi
 [ $# -ge 2 ] || usage
 name=$1 state=$2 task=${3:-}
+if [ "$state" = role ]; then
+  [ -n "$task" ] || usage
+  [ -f "$DIR/$name.token" ] || die "no token for '$name'; run: bot-ping join \"$name\" <role>"
+  body="{\"owner\":\"$(esc "$(owner)")\",\"bot\":\"$(esc "$name")\",\"role\":\"$(esc "${task:0:80}")\"}"
+  res=$(curl -sS -m 10 -H @- -H 'Content-Type: application/json' -d "$body" "$URL/role" <<<"Authorization: Bearer $(cat "$DIR/$name.token")") || die "server unreachable"
+  r=$(printf '%s' "$res" | field role)
+  [ -n "$r" ] || die "role change failed: $(printf '%s' "$res" | field error)"
+  echo "$name is now $r"; exit 0
+fi
 case $state in working|idle|asleep) ;; *) die "state must be working, idle or asleep";; esac
 [ -f "$DIR/$name.token" ] || die "no token for '$name'; run: bot-ping join \"$name\" <role>"
 body="{\"owner\":\"$(esc "$(owner)")\",\"bot\":\"$(esc "$name")\",\"state\":\"$state\""
