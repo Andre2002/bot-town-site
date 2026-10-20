@@ -1,0 +1,15 @@
+{
+  "id": "closeup",
+  "route": "ink",
+  "scale": 3,
+  "frame": {
+    "w": 214,
+    "h": 145
+  },
+  "anchor": {
+    "x": 0,
+    "y": 0
+  },
+  "baseline": 144,
+  "notes": "ink route from board_gen2.png: tools/art/ink2pixel.py, long edge 220, 3 art px per map px. One still frame."
+}

@@ -249,6 +249,7 @@ const IMG = {};
 const IMG_SRC = { leaf_piles: 'assets/autumn/leaf_piles.png' }; // art loads from its file; villagers from the atlas below
 IMG_SRC.library = 'assets/library/library.png';
 IMG_SRC.desk = 'assets/library_desk/desk.png'; // library check-out desk (room art, not on the map)
+IMG_SRC.taskboard = 'assets/taskboard/closeup.png'; // Task Board close-up (view `board`)
 // animated sprites are a PNG sheet + a JSON next to it (frames, per-frame ms, anchor, baseline), packed into assets/manifest.js by tools/art/pack.py
 const ANIM = window.ASSETS || {};
 Object.values(ANIM).forEach(a => { if (a.src) IMG_SRC[a.id] = a.src; });
@@ -422,6 +423,8 @@ const LEAF_PILES = [{ id: 'leaf_pile_a', x: 43, y: 163, w: 16, h: 7 }, { id: 'le
 const FEATURES = {
   library: { kind: 'building', x: 327, y: 238, w: 60, h: 56, door: 357 }, // door: centre x of the door in library.png, base y 294
   plaza_cat: { x: 226, y: 200, w: 16, h: 10 },
+  task_board: { x: 361, y: 183, w: 34, h: 29, tip: 'Read the Task Board' }, // drawn in drawPubSquare; click opens view `board`
+  board_spot_1: { x: 367, y: 204, w: 8, h: 10 }, board_spot_2: { x: 381, y: 204, w: 8, h: 10 }, board_wait: { x: 344, y: 214, w: 8, h: 10 }, // feet (371,214), (385,214), (348,224)
   bell: { x: 257, y: 102, w: 14, h: 14, tip: 'Ring for a stand-up', ms: 2880 }, // bell.png: 3 frames of 14x14 (rest, tilt-left, tilt-right); rings `ms` (6 x F2/F1/F3/F1 at 120 ms)
 };
 const ROOFS = {
@@ -446,7 +449,7 @@ const LOT_C = [44, 116, 198, 271, 446];
 const LOT_NODE = ['b44', 'b116', 'b198', 'b271', 'b446'];
 const WS_TYPES = { forge: 'Forge', tower: 'Mage Tower', workshop: 'Workshop', lab: 'Alchemy Lab' };
 const DOOR_X = { forge: -11, tower: 9, workshop: 0, lab: 0 };
-const PLACE_NAMES = { hall: 'Town Hall', pub: 'The Pub', library: 'Library' };
+const PLACE_NAMES = { hall: 'Town Hall', pub: 'The Pub', library: 'Library', board: 'Task Board' }; // board: a close-up view, not in buildingIds
 function bName(id) {
   if (id.startsWith('house')) return HOUSES[+id.slice(5)].name;
   if (PLACE_NAMES[id]) return PLACE_NAMES[id];
@@ -503,7 +506,7 @@ const TASKS = {
 // ---------- state ----------
 const S = {
   bots: [], ws: [{ name: 'The Forge', type: 'forge' }, { name: 'Mage Tower', type: 'tower' }, { name: 'Artisan Workshop', type: 'workshop' }, { name: 'Alchemy Lab', type: 'lab' }],
-  elder: null, log: [], simulate: true, meeting: null, nextId: 1, queueAt: 0, releaseAt: 0, leaver: null, hour: 12, pinned: false, bell: null,
+  elder: null, log: [], simulate: true, meeting: null, nextId: 1, queueAt: 0, releaseAt: 0, leaver: null, hour: 12, pinned: false, bell: null, pins: {}, // pins: board slot -> pin colour of a note that was taken down
 };
 const clk = { anchorReal: Date.now(), anchorSim: Date.now(), rate: 1, mode: 'live' };
 const simNow = () => clk.anchorSim + (Date.now() - clk.anchorReal) * clk.rate;
@@ -1027,6 +1030,7 @@ function goalFor(b) {
     const k = Math.min(b.ws, S.ws.length - 1), dx = LOT_C[k] + (DOOR_X[S.ws[k].type] || 0);
     return { key: 'ws' + k, node: LOT_NODE[k], enter: 'ws' + k, pts: [[dx, 301], [dx, 296]] };
   }
+  if (st === 'idle' && b.note && b.note.done) return boardGoal(b);
   let place = st === 'working' ? 'hall' : st === 'meeting' ? S.meeting.place : idlePlace(S.hour, b.role, b);
   if (place === 'hall') return { key: 'hall', node: 'm240', enter: 'hall', pts: [[240, 110], [240, 101]] };
   if (place === 'library') return { key: 'library', node: 'b357', enter: 'library', pts: [[FEATURES.library.door, 301], [FEATURES.library.door, 296]] };
@@ -1104,6 +1108,26 @@ function finishSummon(b) {
   dirty = true;
 }
 function assign(b, task) { if (b.state === 'asleep') addLog(`${b.name} woke up for a new task`); b.state = 'working'; b.task = task; say(b, `On it: ${task}`); addLog(`${b.name} started: ${task}`); }
+// Task Board notes: a working bot takes the lowest free slot (4x2 grid) and keeps it; when it goes idle the note is `done` and stays pinned
+// until the bot walks over and takes it (goalFor -> boardGoal, then the take sequence in update). Asleep or meeting bots keep theirs up.
+const BOARD = { spots: [[371, 214], [385, 214]], wait: [348, 224] };
+const boardSlot = i => [365 + (i % 4) * 7, 190 + (i >> 2) * 5];
+function syncNotes() {
+  S.bots.forEach(b => {
+    const n = b.note;
+    if (n && n.inHand) return;
+    if (b.state === 'working' && b.task) {
+      if (!n) { const slot = [...Array(8).keys()].find(i => !S.bots.some(o => o.note && !o.note.inHand && o.note.slot === i)); if (slot == null) return; b.note = { slot, text: b.task, done: false }; delete S.pins[slot]; }
+      else { n.text = b.task; n.done = false; }
+    } else if (n && b.state === 'idle') n.done = true;
+  });
+}
+function boardGoal(b) {
+  const free = i => !S.bots.some(o => o !== b && o.bspot === i), want = b.note.slot % 4 < 2 ? 0 : 1;
+  if (b.bspot == null || b.bspot === 'wait') b.bspot = free(want) ? want : free(1 - want) ? 1 - want : 'wait';
+  const [x, y] = b.bspot === 'wait' ? BOARD.wait : BOARD.spots[b.bspot];
+  return { key: 'board' + b.bspot, node: 'v219', pts: [[x, 219], [x, y]] };
+}
 function finish(b) { addLog(`${b.name} finished: ${b.task}`); say(b, 'Done!'); b.state = 'idle'; b.task = ''; b.idlePick = null; }
 function wake(b) { b.state = 'idle'; b.idlePick = null; say(b, S.hour >= 5 && S.hour < 12 ? 'Good morning!' : 'I’m up.'); addLog(`${b.name} woke up`); }
 function sleep(b) { b.state = 'asleep'; b.task = ''; say(b, 'Goodnight.'); addLog(`${b.name} went quiet and headed to bed`); }
@@ -1121,6 +1145,7 @@ function update(b, dt, now) {
     return;
   }
   if (b.spot != null && Math.hypot(b.x - HILL.spots[b.spot][0], b.y - HILL.spots[b.spot][1]) >= 20) b.spot = null;
+  if (b.bspot != null && !(b.state === 'idle' && b.note && b.note.done)) { b.bspot = b.bt = null; if (b.note && b.note.inHand) b.note = null; } // not (or no longer) on a board errand
   if (b.inside) { updateInside(b, dt, now); return; }
   if (!b.path.length) {
     const gl = goalFor(b);
@@ -1138,6 +1163,11 @@ function update(b, dt, now) {
       if (p.node && b.path.length) { const gl = goalFor(b); if (gl.key !== b.goalKey) { b.anchor = p.node; b.exit = []; routeTo(b, gl); } }
       if (!b.path.length) { arrive(b, now); break; }
     } else { b.x += dx / d * budget; b.y += dy / d * budget; budget = 0; }
+  }
+  if (b.arrived && !b.path.length && b.bspot != null && b.bspot !== 'wait' && b.goalKey === 'board' + b.bspot) { // at its spot: face up 0.6 s, reach 0.4 s (the note comes off at the reach), then off with the note in hand
+    const bt = b.bt || (b.bt = { ph: 'face', t: now });
+    if (bt.ph === 'face' && now - bt.t >= 600) { bt.ph = 'reach'; bt.t = now; b.note.inHand = true; S.pins[b.note.slot] = b.color; }
+    else if (bt.ph === 'reach' && now - bt.t >= 400) { b.note = b.bt = b.bspot = null; b.hold = now + 1500; }
   }
 }
 // walkers have their own pace, but nobody pushes through someone ahead on the same way: close behind a walker, match its pace, and
@@ -1315,14 +1345,17 @@ function darkness(h) {
 const SKINS = ['#f6d2b0', '#eab48c', '#c98e62', '#9a6640', '#6e4428', '#ffe0c4'];
 const HAIRS = ['#3b2a20', '#6b4428', '#c99a5c', '#e8c46a', '#2a2a30', '#a2342c', '#d9d0c0', '#8a5a34'];
 const LOOKS = {
-  'Chief of Staff': { title: 'Steward', body: '#37478f', sleeve: '#37478f', pants: '#2a2a40', trim: '#f2c14e', hat: 'none', collar: true },
+  'Chief of Staff': { title: 'Steward', body: '#37478f', sleeve: '#3c49ad', pants: '#2a2a40', trim: '#f2c14e', hat: 'none', collar: true },
   'Engineer': { title: 'Blacksmith', body: '#c9b48a', sleeve: null, pants: '#4a3a30', apron: '#7a4a2a', hat: 'band' },
-  'Designer': { title: 'Artisan', body: '#efe6d6', sleeve: '#efe6d6', pants: '#4a5a8a', hat: 'beret', paint: true },
-  'Researcher': { title: 'Wizard', body: '#5a3a80', sleeve: '#5a3a80', robe: true, trim: '#f2c14e', hat: 'wizard' },
-  'Writer': { title: 'Scribe', body: '#3f7a4f', sleeve: '#3f7a4f', pants: '#6b4428', hat: 'feather' },
-  'Analyst': { title: 'Alchemist', body: '#2d6673', sleeve: '#2d6673', robe: true, trim: '#c9a24a', hat: 'goggles' },
+  'Designer': { title: 'Artisan', body: '#efe6d6', sleeve: '#c4b59f', pants: '#4a5a8a', hat: 'beret', paint: true },
+  'Researcher': { title: 'Wizard', body: '#5a3a80', sleeve: '#46214e', robe: true, trim: '#f2c14e', hat: 'wizard' },
+  'Writer': { title: 'Scribe', body: '#3f7a4f', sleeve: '#1b5502', pants: '#6b4428', hat: 'feather' },
+  'Analyst': { title: 'Alchemist', body: '#2d6673', sleeve: '#156c99', robe: true, trim: '#c9a24a', hat: 'goggles' },
 };
 const lookOf = b => LOOKS[b.role] || LOOKS.Researcher;
+// a look's joints (villager.json "joints", measured off the atlas by tools/art/joints.py) as whole logical px from the feet on a canvas drawn at k (room 2, map 3)
+const jointsOf = (b, dir, k) => { const J = VILLAGER.joints[lookFor(b).look][dir], f = v => v == null ? v : Array.isArray(v) ? v.map(n => Math.floor(n / k)) : Math.floor(v / k); return Object.fromEntries(Object.entries(J).map(([n, v]) => [n, f(v)])); };
+const SPRITE_SKIN = '#f9d5ba', armOf = b => lookOf(b).sleeve || '#e4a47c'; // sleeve colours read off the villager sprites (the blacksmith's arms are bare); b.color is only the bot's accent
 document.getElementById('role-list').innerHTML = Object.entries(LOOKS).map(([r, l]) => `<li>${r} <small>(${l.title})</small></li>`).join('');
 function drawHat(c, b, L, x, hy, crown) {
   if (crown) { R(c, x - 4, hy - 3, 9, 3, P.out); R(c, x - 3, hy - 2, 7, 2, '#f2c14e'); R(c, x - 3, hy - 4, 1, 2, '#f2c14e'); R(c, x, hy - 4, 1, 2, '#f2c14e'); R(c, x + 3, hy - 4, 1, 2, '#f2c14e'); R(c, x, hy - 2, 1, 1, '#e5486b'); return; }
@@ -1352,7 +1385,7 @@ function drawHair(c, b, x, hy) {
 }
 function drawBot(c, b, x, y, walk, t) {
   const k = c === rctx ? 2 : 3;
-  const d = walk ? b.dir : c === rctx && b.dk ? 'left' : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && atHang(b) && HANG[b.hang].dir) || 'down');
+  const d = walk ? b.dir : c === rctx && b.dk ? 'left' : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && b.bt && 'up') || (c === ctx && atHang(b) && HANG[b.hang].dir) || 'down');
   const dir = typeof d === 'string' ? d : 'down', anim = walk ? 'walk_' + dir : 'stand', at = (t + b.phase) * b.speed; // its own pace: legs keep up with its speed
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
   drawChar(c, b, x * k, y * k, dir, animFrame(VILLAGER, anim, at), motion(b, walk, anim, at, t));
@@ -1410,7 +1443,10 @@ function draw(now, h) {
       if (on) for (let i = 0; i < 4; i++) { const ph = ((now / 900) + i / 4) % 1; R(ctx, fx.x - 3 + i * 2, Math.round(fx.y - ph * 9), 1, 1, `rgba(170,255,170,${1 - ph})`); }
     }
   });
-  if (REG.taskBoard) S.bots.filter(b => b.state === 'working').slice(0, 8).forEach((b, i) => { const nx = REG.taskBoard.x + (i % 4) * 7, ny = REG.taskBoard.y + (i >> 2) * 5; R(ctx, nx, ny, 5, 4, '#f6f0e2'); R(ctx, nx + 1, ny + 2, 3, 1, '#9a8a7a'); R(ctx, nx + 2, ny, 1, 1, b.color); });
+  if (REG.taskBoard) { // each note keeps its slot (4x2 grid); a taken one leaves just its pin until the slot is reused
+    Object.entries(S.pins).forEach(([i, col]) => R(ctx, boardSlot(i)[0] + 2, boardSlot(i)[1], 1, 1, shade(col, -0.35)));
+    S.bots.forEach(b => { if (!b.note || b.note.inHand) return; const [nx, ny] = boardSlot(b.note.slot); R(ctx, nx, ny, 5, 4, '#f6f0e2'); R(ctx, nx + 1, ny + 2, 3, 1, '#9a8a7a'); R(ctx, nx + 2, ny, 1, 1, b.color); });
+  }
   // summon runes
   const summoning = S.bots.some(b => b.state === 'summoning' && now >= b.summonAt);
   for (let i = 0; i < 12; i++) { const an = i / 12 * Math.PI * 2 + now / 2400; R(ctx, Math.round(SLATE.x + Math.cos(an) * 11), Math.round(SLATE.y + Math.sin(an) * 6), 1, 1, summoning ? '#e6fbff' : (i % 3 ? '#5fc7d8' : '#3e8fa0')); }
@@ -1418,6 +1454,13 @@ function draw(now, h) {
   S.bots.filter(b => !b.inside && (b.state !== 'summoning' || now >= b.summonAt + 1000)).sort((a, c) => a.y - c.y).forEach(b => {
     if (atHang(b) && HANG[b.hang].pose === 'sit') drawSitter(ctx, b, HANG[b.hang], now); else drawBot(ctx, b, Math.round(b.x), Math.round(b.y), b.walking, now);
     if (atHang(b) && HANG[b.hang].act) hangFx(ctx, b, now);
+    const bx = Math.round(b.x), by = Math.round(b.y);
+    if (b.bt && b.bt.ph === 'reach' && b.note) { // taking its note down, facing up: a 2 px sleeve-coloured arm from the shoulder joint (just outside it) on the slot's side, up to a 2x2 hand holding the note at the slot's lower edge
+      const [, ny] = boardSlot(b.note.slot), left = b.note.slot % 2 === 0, J = jointsOf(b, 'up', 3), [sx, sy] = left ? J.shoulder_l : J.shoulder_r;
+      const ax = bx + (left ? sx - 2 : sx + 1), ty = ny + 4 - (b.note.slot >> 2), sl = armOf(b);
+      R(ctx, ax, ty + 2, 2, by + sy - ty - 1, sl); R(ctx, left ? ax : ax + 1, ty + 2, 1, by + sy - ty - 1, shade(sl, -0.3));
+      R(ctx, ax, ty, 2, 2, SPRITE_SKIN); R(ctx, ax - (left ? 0 : 1), ty - 2, 3, 2, '#f6f0e2');
+    } else if (b.hold > now) R(ctx, bx + 4, by - 9, 2, 2, '#f6f0e2'); // walking off with the taken note
   });
   // night tint
   if (dk > 0) { ctx.fillStyle = `rgba(16,20,62,${dk})`; ctx.fillRect(0, 0, W, H); }
@@ -1941,12 +1984,14 @@ function drawRoom(now, h) {
     R(c, cx + 2, cy - 7, 1, 1, P.out); R(c, cx + 6, cy - 7, 1, 1, P.out); R(c, cx - 7, cy - 1 - tl, 3, 1, '#e8892b'); R(c, cx - 2, cy - 2, 3, 1, '#f5b06b');
     if (Math.floor(now / 2000) % 4 === 0) zLetter(c, cx + 5, cy - 12, 'rgba(255,255,255,.8)');
   }
+  let stackTop = 0; // the lending stack's top slab row, for the reach
   if (kind === 'library') {
     // desk books: 6 in all (lending stack, returns pile, books in hands); the lamp's 2-tone pool shows while anyone is inside
     const hands = inside.filter(b => b.book).length, ret = inside.length ? Math.min(3, S.libRet || 0) : 0, lend = Math.min(5, 6 - hands - ret);
     if (inside.length) { c.save(); c.beginPath(); c.rect(58, 123, 40, 6); c.clip(); ell(c, 68, 125, 9, 2, '#e2b06a'); ell(c, 68, 125, 4, 1, '#f6d58a'); c.restore(); }
     const slab = (x, i) => { const col = COVERS[(i + x) % 5], y = 123 - i * 2; R(c, x, y, 9, 3, P.out); R(c, x + 1, y, 7, 2, col); R(c, x + 1, y, 7, 1, shade(col, 0.3)); };
     for (let i = 0; i < lend; i++) slab(89, i);
+    stackTop = 123 - (lend - 1) * 2;
     for (let i = 0; i < ret; i++) slab(80, i);
   }
   inside.slice().sort((a, b) => (a.inBed === b.inBed ? a.iy - b.iy : a.inBed ? -1 : 1)).forEach(b => {
@@ -1956,9 +2001,15 @@ function drawRoom(now, h) {
   });
   if (kind === 'library') inside.forEach(b => {
     const x = Math.round(b.ix), y = Math.round(b.iy), cv = b.book || COVERS[b.id % 5], dir = b.iwalk ? b.dir : 'down';
-    if (b.dk && b.dk.ph !== 'face') R(c, x - 7, y - 12, 2, 1, b.color); // the reach: a 2x1 arm stub toward the stack
+    if (b.dk) { // the reach (not while she faces the stack), facing left: a 2x2 hand on the stack's top slab (at least 2 px clear of her face joint), a 2-row sleeve arm from just outside her shoulder joint to it, the book lifted clear above the hand
+      if (b.dk.ph === 'face') return;
+      const J = jointsOf(b, 'left', 2), [sx, sy] = J.shoulder_l, hx = Math.min(89 + 7, x + J.face[0] - 4), hy = stackTop - 1, sl = armOf(b);
+      const ay = Math.min(hy + 1, y + sy), aw = Math.max(1, x + sx - hx - 1), ah = Math.max(2, y + sy + 1 - ay);
+      R(c, hx + 2, ay, aw, ah, shade(sl, -0.3)); R(c, hx + 2, ay, aw, 1, shade(sl, 0.45)); R(c, hx, hy, 2, 2, SPRITE_SKIN); // light top row parts the arm from the robe
+      if (b.book) { R(c, hx - 1, hy - 2, 3, 2, cv); R(c, hx - 1, hy - 1, 3, 1, '#f6f0e2'); } // the closed book just above the hand
+      return;
+    }
     if (!b.book) return;
-    if (b.dk) { R(c, x - 9, y - 14, 2, 3, cv); R(c, x - 8, y - 14, 1, 3, '#f6f0e2'); return; } // take frame: the closed book at the hand
     if (b.deskDone && !b.leaving && b.ifx && x === b.ifx.x && y === b.ifx.y) { // reading: an open book at chest height, hands at its lower corners
       const x0 = x - 3, y0 = y - 13, flip = b.flipHold != null ? b.flipHold : (Date.now() + b.id * 1300) % 4000 < 300;
       R(c, x0, y0, 7, 4, shade(cv, -0.3)); R(c, x0 + 1, y0 + 1, 2, 2, '#f6f0e2'); R(c, x0 + 3, y0 + 1, 1, 2, '#c9b48a');
@@ -1981,6 +2032,36 @@ function drawRoom(now, h) {
   });
 }
 
+// Task Board close-up (view `board`): reads state only. closeup.png sits at room px (20,15); cork inner is room x 30-224, y 39-130
+const DISPLAY_FONT = getComputedStyle(document.documentElement).getPropertyValue('--display').trim() || 'serif';
+function drawBoardView(now, h) {
+  const c = rctx, pick = (i, k) => [0, 1, -1, 2, -1, 1, 0, -2][(i + k) % 8];
+  c.setTransform(2, 0, 0, 2, 0, 0); c.imageSmoothingEnabled = false;
+  R(c, 0, 0, IW, IH, P.cob);
+  for (let y = 0; y < IH; y += 4) { R(c, 0, y, IW, 1, P.cobD); for (let x = ((y / 4 | 0) % 2) * 3; x < IW; x += 6) R(c, x, y + 1, 1, 3, P.cobD); }
+  c.drawImage(IMG.taskboard, 20, 15);
+  const slot = i => [35 + (i % 4) * 48 + pick(i, 0), 43 + (i >> 2) * 44 + pick(i, 3) / 2 | 0], pin = (x, y, col) => { R(c, x + 16, y - 1, 3, 3, shade(col, -0.4)); R(c, x + 16, y - 1, 2, 2, col); };
+  const cards = [];
+  for (let i = 0; i < 8; i++) {
+    const [x, y] = slot(i), b = S.bots.find(o => o.note && !o.note.inHand && o.note.slot === i);
+    if (b) { R(c, x + 1, y + 2, 36, 28, 'rgba(60,40,20,.35)'); R(c, x, y, 36, 28, '#8a7a5a'); R(c, x + 1, y + 1, 34, 26, '#efe3c8'); R(c, x + 1, y + 1, 34, 1, '#fff6e0'); pin(x, y + 1, b.color); cards.push([x, y, b]); }
+    else if (S.pins[i]) { R(c, x, y, 36, 28, shade('#c3a87c', 0.14)); pin(x, y + 1, S.pins[i]); }
+  }
+  R(c, 186, 119, 36, 9, '#8a7a5a'); R(c, 187, 120, 34, 7, '#f4e9b0');
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#3a2a1a';
+  c.font = `600 11px ${DISPLAY_FONT}`; c.fillText('Task Board', 254, 62);
+  c.font = `7px ${DISPLAY_FONT}`; c.fillText('Stand-up 9:00', 408, 247);
+  cards.forEach(([x, y, b]) => {
+    c.font = `600 9px ${DISPLAY_FONT}`; c.fillText(b.name, x * 2 + 36, y * 2 + 18);
+    c.font = `8px ${DISPLAY_FONT}`;
+    const lines = []; let cur = '';
+    b.note.text.split(' ').forEach(w => { const t = cur ? cur + ' ' + w : w; if (cur && c.measureText(t).width > 64) { lines.push(cur); cur = w; } else cur = t; });
+    lines.concat(cur).slice(0, 3).forEach((l, k) => c.fillText(l, x * 2 + 36, y * 2 + 29 + k * 9));
+  });
+  c.restore();
+  const dk = darkness(h) * 0.55; if (dk > 0) { c.fillStyle = `rgba(16,20,62,${dk})`; c.fillRect(0, 0, IW, IH); }
+}
+
 // ---------- view switching ----------
 const roomBar = document.getElementById('room-bar'), roomName = document.getElementById('room-name'), roomWho = document.getElementById('room-who');
 const tip = document.getElementById('hover-tip'), lookSel = document.getElementById('look');
@@ -1995,6 +2076,7 @@ function closeRoom() {
 }
 function updateRoomWho() {
   if (view === 'map') return;
+  if (view === 'board') { if (roomWho.textContent) roomWho.textContent = ''; return; }
   const inside = S.bots.filter(b => b.inside === view);
   let t = inside.length ? `${inside.length} inside: ` + inside.map(b => `${b.name} (${b.inBed || b.state === 'asleep' ? 'asleep' : b.leaving ? 'leaving' : b.iwalk ? 'walking in' : LABEL[b.state].toLowerCase() + ': ' + detailOf(b).toLowerCase()})`).join(', ') : 'Nobody is inside right now.';
   if (view.startsWith('house')) { const res = S.bots.filter(b => b.house === +view.slice(5)); t += ` · ${res.length}/5 beds taken`; }
@@ -2002,7 +2084,7 @@ function updateRoomWho() {
 }
 function fillLook() {
   const v = view === 'map' ? '' : view;
-  lookSel.innerHTML = '<option value="">Choose a building…</option>' + buildingIds().map(id => `<option value="${id}">${esc(bName(id))}</option>`).join('');
+  lookSel.innerHTML = '<option value="">Choose a building…</option>' + [...buildingIds(), 'board'].map(id => `<option value="${id}">${esc(bName(id))}</option>`).join('');
   lookSel.value = v;
 }
 lookSel.addEventListener('change', () => { if (lookSel.value) openRoom(lookSel.value); else closeRoom(); });
@@ -2010,7 +2092,7 @@ document.getElementById('room-back').addEventListener('click', closeRoom);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && view !== 'map') closeRoom(); });
 function mapHit(e) {
   const r = cv.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W, y = (e.clientY - r.top) / r.height * H;
-  return [{ id: 'bell', ...FEATURES.bell }, ...REG.hits].find(h => x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h);
+  return [{ id: 'bell', ...FEATURES.bell }, { id: 'board', ...FEATURES.task_board }, ...REG.hits].find(h => x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h);
 }
 cv.addEventListener('mousemove', e => {
   const hit = mapHit(e); hoverId = hit ? hit.id : null; cv.style.cursor = hit ? 'pointer' : 'default';
@@ -2035,6 +2117,7 @@ function updateTags(now) {
       if (b.inBed) { const bd = getRoom(view).reg.beds[bedOf(b)]; x = bd.x + 15; y = bd.y - 2; } else { x = b.ix; y = b.iy - 26; }
     }
     el.hidden = false;
+    el.lastChild.hidden = view === 'map' && !!b.bt; // at the board the name rests for the face + reach (no spot clears the notes), back the frame the bot turns away
     el.style.left = (x / w * 100) + '%'; el.style.top = (y / hgt * 100) + '%';
     const show = b.bubble && now < b.bubble.until;
     if (show) { if (bub.textContent !== b.bubble.text) bub.textContent = b.bubble.text; bub.hidden = false; shown.push(b); } else bub.hidden = true;
@@ -2358,7 +2441,23 @@ const libScene = ret => () => {
   Object.assign(quill, { ix: 42, iy: 87, flipHold: ret, ifx: { ...getRoom('library').stations[0], key: quill.istation } });
   Object.assign(wren, { ix: DESK.x, iy: DESK.y, istation: 'desk', ifx: { ...DESK, key: 'desk' }, deskDone: false, dk: { ph: ret ? 'ret' : 'take', t } });
 };
+// board scenes (hour 10): Ledger, Sage, Bolt at work with notes in slots 0, 2, 3; Nova on board_spot_1 frozen in the reach frame, her slot-1 note in hand
+// carry: a step back toward the road (371,218) facing down with the paper in hand, name shown
+const boardScene = carry => () => {
+  const [nova, ledger, sage, bolt] = ['Nova', 'Ledger', 'Sage', 'Bolt'].map(n => S.bots.find(b => b.name === n));
+  S.bots.forEach(b => Object.assign(b, { state: 'idle', task: '', note: null }));
+  [[ledger, 0, 'Balancing the books'], [sage, 2, 'Reading three new papers'], [bolt, 3, 'Running the test suite']].forEach(([b, slot, task]) => {
+    Object.assign(b, { state: 'working', task, note: { slot, text: task, done: false }, inside: null, goalKey: null }); routeTo(b, goalFor(b)); const q = b.path.pop(); Object.assign(b, { x: q.x, y: q.y, path: [] }); arrive(b, Date.now());
+  });
+  Object.assign(nova, { inside: null, hang: null, note: { slot: 1, text: 'Sketching the onboarding flow', done: true, inHand: true }, bt: { ph: 'reach', t: Date.now() + 1e12 } }); S.pins[1] = nova.color;
+  routeTo(nova, boardGoal(nova)); const q = nova.path.pop(); Object.assign(nova, { x: q.x, y: q.y, path: [] }); arrive(nova, Date.now());
+  if (carry) Object.assign(nova, { x: 371, y: 218, arrived: false, bt: null, hold: Date.now() + 1e12 });
+};
 const scene = {
+  'board-take': { hour: 10, then: boardScene(false) },
+  'board-carry': { hour: 10, then: boardScene(true) },
+  'board-look': { hour: 10, look: 'board', then: boardScene(false) },
+  'library-reach': { hour: 19, look: 'library', then: libScene(false) }, // Wren frozen in the take phase facing left toward the stack
   'library-day': { hour: 10, wren: true, look: 'library' },
   'library-dusk': { hour: 19, wren: true },
   'library-desk': { hour: 19, look: 'library', then: libScene(false) },
@@ -2405,7 +2504,8 @@ function frame(t) {
   S.bots.forEach(b => update(b, dt, now));
   if (scene && scene.pinWhen && !S.pinned && scene.pinWhen()) S.pinned = true;
   if (S.meeting && now > S.meeting.until) endMeeting();
-  if (view === 'map') draw(now, h); else drawRoom(now, h);
+  syncNotes();
+  if (view === 'map') draw(now, h); else if (view === 'board') drawBoardView(now, h); else drawRoom(now, h);
   updateTags(now);
   updateClock(sim, h);
   if (now - lastWhere > 700) { lastWhere = now; dirty = true; buildSignsIfChanged(); updateRoomWho(); }
