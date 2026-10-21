@@ -360,9 +360,11 @@ const CAST_ANCHOR = { x: 32, y: 62 }, CAST_ROLES = ['designer', 'elder', 'engine
 const CAST_OF = { 'Chief of Staff': 'steward', Engineer: 'engineer', Designer: 'designer', Analyst: 'qa', Researcher: 'wizard', Writer: 'scribe' }; // wizard, scribe: v2 designs Andre approved 2026-10-21, built on base
 const CAST_SRC = { up: r => `assets/cast/turnaround/${r}-back.png`, down: r => `assets/cast/masters/${r}.png`, right: r => `assets/cast/turnaround/${r}-side-right.png`, left: r => `assets/cast/turnaround/${r}-side-left.png` };
 for (const r of CAST_ROLES) for (const d in CAST_SRC) IMG_SRC['cast_' + r + '_' + d] = CAST_SRC[d](r);
-// walk cycles (tools/art/walk/build_walk.py): 4 frames per facing (contact, passing, contact, passing), the same anchor and
-// palette as the stills; the villager walk's 8 steps map 2:1 onto them, so the bob (lift) still lands on the passing frames
-for (const r of CAST_ROLES) for (const d in CAST_SRC) for (let i = 0; i < 4; i++) IMG_SRC['castw_' + r + '_' + d + '_' + i] = `assets/cast/walk/${r}-${d}-${i}.png`;
+// walk cycles (tools/art/walk/build_walk.py): 8 frames per facing (contact, down, pass, up, x2), the same anchor and palette as
+// the stills. The body bob is drawn in the art (walk/timing.json dy), so the cast gets no code lift; one ms entry per art frame
+// (880 ms a cycle on the bot's own clock: the planted boot moves back at the walk budget's 30 px/s; walk_frames.py checks both)
+const CAST_WALK = { ms: [120, 110, 100, 110, 120, 110, 100, 110], n: 8, frames: [0, 1, 2, 3, 4, 5, 6, 7] };
+for (const r of CAST_ROLES) for (const d in CAST_SRC) for (let i = 0; i < CAST_WALK.n; i++) IMG_SRC['castw_' + r + '_' + d + '_' + i] = `assets/cast/walk/${r}-${d}-${i}.png`;
 const castRole = b => b.id === S.elder ? 'elder' : CAST_OF[b.role] || null;
 const castExtra = b => { const j = castImg(b, 'down') && CAST_JOINTS[castRole(b)]; return j ? Math.max(0, -48 - j.down.head_top) : 0; }; // rows of headwear above the usual head top (wizard hat: 11)
 const castImg = (b, dir) => IMG['cast_' + castRole(b) + '_' + (CAST_SRC[dir] ? dir : 'down')];
@@ -396,8 +398,8 @@ function motion(b, walking, anim, t, now) {
   let bob = 0, top = 0, step = null;
   if (walking) {
     const an = VILLAGER.anims[anim];
-    { const { i } = animAt(an, t); step = Math.floor(i / 2) % 4; } // cast walk frame
-    if (an.lift) { const { i, k } = animAt(an, t); bob = ease(an.lift[i], an.lift[(i + 1) % an.lift.length], k); }
+    if (castImg(b, 'down')) step = animAt(CAST_WALK, t).i; // cast walk frame: its own timing, bob in the art (no lift)
+    else if (an.lift) { const { i, k } = animAt(an, t); bob = ease(an.lift[i], an.lift[(i + 1) % an.lift.length], k); }
   } else {
     if (mo.walking) { mo.stopAt = now; mo.vx += M.hair.kick * (b.dir === 'right' ? 1 : b.dir === 'left' ? -1 : 0); mo.vy += M.hair.kick * 0.5; }
     const st = now - mo.stopAt, keys = M.stop.px;
