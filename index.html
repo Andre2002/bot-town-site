@@ -353,10 +353,21 @@ function partsFor(b) {
     hat: part(['hat_' + look]),
   });
 }
+// cast sprites (town/assets/cast): one 64x64 still per facing, the same anchor as the villagers (x 32, feet on row 62),
+// so a bot's feet don't move when it turns. up = back, down = the front master, right/left = the side views; the 3/4
+// files (-34.png) are kept for turns later. The walk keeps its bob (motion().bob); idle keeps the last facing
+const CAST_ANCHOR = { x: 32, y: 62 }, CAST_ROLES = ['base', 'designer', 'elder', 'engineer', 'qa', 'steward'];
+const CAST_OF = { 'Chief of Staff': 'steward', Engineer: 'engineer', Designer: 'designer', Analyst: 'qa', Researcher: 'base', Writer: 'base' };
+const CAST_SRC = { up: r => `assets/cast/turnaround/${r}-back.png`, down: r => `assets/cast/masters/${r}.png`, right: r => `assets/cast/turnaround/${r}-side-right.png`, left: r => `assets/cast/turnaround/${r}-side-left.png` };
+for (const r of CAST_ROLES) for (const d in CAST_SRC) IMG_SRC['cast_' + r + '_' + d] = CAST_SRC[d](r);
+const castRole = b => b.id === S.elder ? 'elder' : CAST_OF[b.role] || 'base';
+const castImg = (b, dir) => IMG['cast_' + castRole(b) + '_' + (CAST_SRC[dir] ? dir : 'down')];
 // m (from motion()): bob lifts the whole villager, top moves the upper body (rows above motion.split; + squashes down, - stretches up,
 // the seam row filling the gap), hx/hy place the hair. Whole sheet px only: no scaling, so the pixels stay crisp. No m: the plain sheet
 function drawChar(g, b, x, y, dir, frame, m) {
   g.fillStyle = 'rgba(0,0,0,.22)'; g.beginPath(); g.ellipse(x, y - 2, 11, 4, 0, 0, Math.PI * 2); g.fill();
+  const cast = castImg(b, dir);
+  if (cast) { g.drawImage(cast, Math.round(x) - CAST_ANCHOR.x, Math.round(y) - CAST_ANCHOR.y - (m ? m.bob : 0)); return; } // whole px, 1:1: feet stay on row 62
   const sx = frame * FR, sy = DIR[dir] * FR, ox = Math.round(x - VILLAGER.anchor.x), oy = Math.round(y - VILLAGER.anchor.y);
   if (!m) { g.drawImage(sheetFor(b), sx, sy, FR, FR, ox, oy, FR, FR); return; }
   const p = partsFor(b), sp = VILLAGER.motion.split, lo = oy - m.bob, up = lo + m.top;
@@ -1385,7 +1396,7 @@ function drawHair(c, b, x, hy) {
 }
 function drawBot(c, b, x, y, walk, t) {
   const k = c === rctx ? 2 : 3;
-  const d = walk ? b.dir : c === rctx && b.dk ? 'left' : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && b.bt && 'up') || (c === ctx && atHang(b) && HANG[b.hang].dir) || 'down');
+  const d = walk ? b.dir : c === rctx && b.dk ? 'left' : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && b.bt && 'up') || (c === ctx && atHang(b) && HANG[b.hang].dir) || b.dir || 'down'); // idle: the last facing
   const dir = typeof d === 'string' ? d : 'down', anim = walk ? 'walk_' + dir : 'stand', at = (t + b.phase) * b.speed; // its own pace: legs keep up with its speed
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
   drawChar(c, b, x * k, y * k, dir, animFrame(VILLAGER, anim, at), motion(b, walk, anim, at, t));
@@ -2529,6 +2540,23 @@ window.__villagerClip = ({ role = 'Engineer', name = 'Bolt', slot = 1, step = 40
     out.push(c.toDataURL());
   }
   return { speed: b.speed, frames: out };
+};
+// read-only test hook for the cast walk proof: one cast bot (role, or elder) walks a square (down, right, up, left, `leg` ms each)
+// and then stands, drawn by drawChar with the town's own walk bob, frame by frame on a stepped clock (exact frames, not captures)
+window.__castClip = ({ role = 'Engineer', elder = false, step = 50, leg = 1200, rest = 600 } = {}) => {
+  const c = document.createElement('canvas'); c.width = 200; c.height = 200; const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+  const b = { id: elder ? S.elder : -1, name: role, role, slot: 1, dir: 'down', ...paceOf(role) }, out = [], t0 = 1e6, v = 60 / leg;
+  const legs = [['down', 0, 1], ['right', 1, 0], ['up', 0, -1], ['left', -1, 0]];
+  let x = 70, y = 80;
+  for (let t = 0; t < 4 * leg + rest; t += step) {
+    const i = Math.floor(t / leg), walking = i < 4, at = (t + b.phase) * b.speed;
+    if (walking) { const [d, dx, dy] = legs[i]; b.dir = d; x += dx * v * step; y += dy * v * step; }
+    const anim = walking ? 'walk_' + b.dir : 'stand';
+    g2.fillStyle = P.grass; g2.fillRect(0, 0, c.width, c.height);
+    drawChar(g2, b, Math.round(x), Math.round(y), b.dir, animFrame(VILLAGER, anim, at), motion(b, walking, anim, at, t0 + t));
+    out.push({ dir: b.dir, walking, x: Math.round(x), y: Math.round(y), png: c.toDataURL() });
+  }
+  return { cast: castRole(b), frames: out };
 };
 // read-only layout snapshot for tools/shoot.py (agents read the saved layout.json, not this file)
 window.__townLayout = () => ({
