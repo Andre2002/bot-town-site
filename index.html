@@ -163,7 +163,7 @@ pre{margin:0;background:#101512;border:2px solid #2d3833;border-radius:3px;paddi
           <div class="row">
             <div class="field"><label for="summon-name">Name</label><input type="text" id="summon-name" maxlength="12" placeholder="e.g. Pip"></div>
             <div class="field"><label for="summon-role">Role</label>
-              <select id="summon-role"><option value="Researcher">Researcher (wizard)</option><option value="Designer">Designer (artisan)</option><option value="Engineer">Engineer (blacksmith)</option><option value="Writer">Writer (scribe)</option><option value="Analyst">Analyst (alchemist)</option><option value="Chief of Staff">Chief of Staff (steward)</option></select></div>
+              <select id="summon-role"><option value="Researcher">Researcher (Mage Tower)</option><option value="Designer">Designer (Artisan Workshop)</option><option value="Engineer">Engineer (Forge)</option><option value="Writer">Writer (Library)</option><option value="Analyst">Analyst (Alchemy Lab)</option><option value="Chief of Staff">Chief of Staff (Town Hall)</option></select></div>
           </div>
           <div class="field"><label for="summon-what">What does it do? (optional)</label><input type="text" id="summon-what" maxlength="60" placeholder="e.g. QA and testing: picks the closest role"></div>
           <div class="field"><label for="summon-ws">Works at</label><select id="summon-ws"></select></div>
@@ -356,12 +356,15 @@ function partsFor(b) {
 // cast sprites (town/assets/cast): one 64x64 still per facing, the same anchor as the villagers (x 32, feet on row 62),
 // so a bot's feet don't move when it turns. up = back, down = the front master, right/left = the side views; the 3/4
 // files (-34.png) are kept for turns later. The walk keeps its bob (motion().bob); idle keeps the last facing
-const CAST_ANCHOR = { x: 32, y: 62 }, CAST_ROLES = ['base', 'designer', 'elder', 'engineer', 'qa', 'steward'];
-const CAST_OF = { 'Chief of Staff': 'steward', Engineer: 'engineer', Designer: 'designer', Analyst: 'qa', Researcher: 'base', Writer: 'base' };
+const CAST_ANCHOR = { x: 32, y: 62 }, CAST_ROLES = ['designer', 'elder', 'engineer', 'qa', 'steward']; // base is the NPC reference model (docs/cast-base.md): kept, never spawned
+const CAST_OF = { 'Chief of Staff': 'steward', Engineer: 'engineer', Designer: 'designer', Analyst: 'qa', Researcher: 'scholar', Writer: 'scribe' }; // scholar, scribe: placeholders until their art lands (no files yet -> the old villager look)
 const CAST_SRC = { up: r => `assets/cast/turnaround/${r}-back.png`, down: r => `assets/cast/masters/${r}.png`, right: r => `assets/cast/turnaround/${r}-side-right.png`, left: r => `assets/cast/turnaround/${r}-side-left.png` };
 for (const r of CAST_ROLES) for (const d in CAST_SRC) IMG_SRC['cast_' + r + '_' + d] = CAST_SRC[d](r);
-const castRole = b => b.id === S.elder ? 'elder' : CAST_OF[b.role] || 'base';
+const castRole = b => b.id === S.elder ? 'elder' : CAST_OF[b.role] || null;
 const castImg = (b, dir) => IMG['cast_' + castRole(b) + '_' + (CAST_SRC[dir] ? dir : 'down')];
+// joints of the cast art (px from the 32,62 anchor, read off the sprites: tools/checks/role_buildings.py re-reads them), and each design's sleeve colour
+const CAST_JOINTS = {"base":{"down":{"head_top":-48,"face":[-8,-40,7,-29],"shoulder_l":[-8,-26],"shoulder_r":[7,-26],"hand_l":[-7,-12],"hand_r":[6,-12]},"up":{"head_top":-48,"face":null,"shoulder_l":[-8,-26],"shoulder_r":[6,-26],"hand_l":[-6,-12],"hand_r":[5,-12]},"right":{"head_top":-48,"face":[-6,-39,6,-29],"shoulder_l":[-9,-25],"shoulder_r":[2,-25],"hand_l":[-7,-13],"hand_r":[4,-14]},"left":{"head_top":-48,"face":[-7,-39,5,-29],"shoulder_l":[-3,-25],"shoulder_r":[8,-25],"hand_l":[-5,-14],"hand_r":[6,-13]}},"designer":{"down":{"head_top":-48,"face":[-7,-40,6,-29],"shoulder_l":[-9,-26],"shoulder_r":[7,-26],"hand_l":[-6,-12],"hand_r":[6,-12]},"up":{"head_top":-48,"face":null,"shoulder_l":[-9,-26],"shoulder_r":[7,-26],"hand_l":[-11,-13],"hand_r":[9,-13]},"right":{"head_top":-48,"face":[-4,-39,6,-30],"shoulder_l":[-8,-25],"shoulder_r":[3,-25],"hand_l":[-10,-15],"hand_r":[5,-15]},"left":{"head_top":-48,"face":[-7,-39,3,-30],"shoulder_l":[-4,-25],"shoulder_r":[7,-25],"hand_l":[-6,-15],"hand_r":[9,-15]}},"elder":{"down":{"head_top":-48,"face":[-8,-39,7,-33],"shoulder_l":[-10,-26],"shoulder_r":[8,-26],"hand_l":[-11,-16],"hand_r":[9,-13]},"up":{"head_top":-48,"face":null,"shoulder_l":[-10,-26],"shoulder_r":[7,-26],"hand_l":[-10,-14],"hand_r":[11,-18]},"right":{"head_top":-48,"face":[-3,-39,7,-33],"shoulder_l":[-6,-25],"shoulder_r":[6,-25],"hand_l":null,"hand_r":[4,-14]},"left":{"head_top":-48,"face":[-8,-39,2,-33],"shoulder_l":[-7,-25],"shoulder_r":[5,-25],"hand_l":[-5,-14],"hand_r":null}},"engineer":{"down":{"head_top":-48,"face":[-9,-43,8,-29],"shoulder_l":[-9,-26],"shoulder_r":[7,-26],"hand_l":[-10,-13],"hand_r":[8,-13]},"up":{"head_top":-48,"face":null,"shoulder_l":[-8,-26],"shoulder_r":[7,-26],"hand_l":[-9,-15],"hand_r":[8,-15]},"right":{"head_top":-48,"face":[-5,-43,7,-29],"shoulder_l":[-9,-25],"shoulder_r":[3,-25],"hand_l":[-9,-14],"hand_r":[9,-17]},"left":{"head_top":-48,"face":[-8,-43,4,-29],"shoulder_l":[-4,-25],"shoulder_r":[8,-25],"hand_l":[-10,-17],"hand_r":[8,-14]}},"qa":{"down":{"head_top":-48,"face":[-7,-40,6,-30],"shoulder_l":[-8,-26],"shoulder_r":[7,-26],"hand_l":[-9,-13],"hand_r":[8,-14]},"up":{"head_top":-48,"face":null,"shoulder_l":[-8,-26],"shoulder_r":[7,-26],"hand_l":[-10,-14],"hand_r":[9,-14]},"right":{"head_top":-48,"face":[1,-37,7,-30],"shoulder_l":[-9,-25],"shoulder_r":[6,-25],"hand_l":[-9,-15],"hand_r":[9,-16]},"left":{"head_top":-48,"face":[-8,-37,-2,-30],"shoulder_l":[-7,-25],"shoulder_r":[8,-25],"hand_l":[-10,-16],"hand_r":[8,-15]}},"steward":{"down":{"head_top":-48,"face":[-7,-40,6,-29],"shoulder_l":[-8,-26],"shoulder_r":[6,-26],"hand_l":[-8,-14],"hand_r":[8,-14]},"up":{"head_top":-48,"face":null,"shoulder_l":[-7,-26],"shoulder_r":[7,-26],"hand_l":[-8,-16],"hand_r":[8,-16]},"right":{"head_top":-48,"face":[-3,-39,7,-30],"shoulder_l":[-7,-25],"shoulder_r":[3,-25],"hand_l":[-8,-15],"hand_r":[7,-16]},"left":{"head_top":-48,"face":[-8,-39,2,-30],"shoulder_l":[-4,-25],"shoulder_r":[6,-25],"hand_l":[-8,-16],"hand_r":[7,-15]}}};
+const CAST_SLEEVE = { base: '#cbaf88', designer: '#52324b', elder: '#224889', engineer: '#dac099', qa: '#3f4d2e', steward: '#612628' };
 // m (from motion()): bob lifts the whole villager, top moves the upper body (rows above motion.split; + squashes down, - stretches up,
 // the seam row filling the gap), hx/hy place the hair. Whole sheet px only: no scaling, so the pixels stay crisp. No m: the plain sheet
 function drawChar(g, b, x, y, dir, frame, m) {
@@ -408,7 +411,8 @@ function motion(b, walking, anim, t, now) {
 }
 function portrait(b) {
   const c = document.createElement('canvas'); c.width = 28; c.height = 28; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
-  g.drawImage(sheetFor(b), 18, 2 * FR + 8, 28, 28, 0, 0, 28, 28); return c;
+  const cast = castImg(b, 'down'); // the cast design's head and shoulders (its head starts on row 14)
+  if (cast) g.drawImage(cast, 18, 12, 28, 28, 0, 0, 28, 28); else g.drawImage(sheetFor(b), 18, 2 * FR + 8, 28, 28, 0, 0, 28, 28); return c;
 }
 
 
@@ -1034,15 +1038,24 @@ function bedOf(b) { return Math.floor(b.slot / 4); } // 4 houses x 5 beds: slot 
 function slotIndex(b, list) { return list.filter(o => o.id < b.id).length; }
 // a bot's goal at a hangout spot t on the park ring
 const hangGoal = t => ({ key: 'park', node: 'm80', area: 'park', hang: t, ringA: t.a, pts: [[81, 134], ringPt(RING_IN), ...arcPts(RING_IN, t.a), [t.x, t.y]] });
+// each role works in one kind of building (Andre, 2026-10-21): a lot of that type, the Library or the Town Hall; no such lot -> the Hall
+const ROLE_BUILDING = { Engineer: 'forge', Researcher: 'tower', Analyst: 'lab', Designer: 'workshop', Writer: 'library', 'Chief of Staff': 'hall' };
+const BUILDING_NAME = { ...WS_TYPES, library: 'Library', hall: 'Town Hall' };
+function workPlace(b) {
+  const t = ROLE_BUILDING[b.role] || 'hall';
+  if (t === 'library' || t === 'hall') return t;
+  const k = S.ws.findIndex(w => w.type === t); return k < 0 ? 'hall' : 'ws' + k;
+}
 function goalFor(b) {
   const st = b.state;
   if (st === 'asleep') return homeGoal(b);
-  if (st === 'working' && b.id !== S.elder) {
-    const k = Math.min(b.ws, S.ws.length - 1), dx = LOT_C[k] + (DOOR_X[S.ws[k].type] || 0);
+  const wp = workPlace(b);
+  if (st === 'working' && b.id !== S.elder && wp.startsWith('ws')) {
+    const k = b.ws = +wp.slice(2), dx = LOT_C[k] + (DOOR_X[S.ws[k].type] || 0);
     return { key: 'ws' + k, node: LOT_NODE[k], enter: 'ws' + k, pts: [[dx, 301], [dx, 296]] };
   }
   if (st === 'idle' && b.note && b.note.done) return boardGoal(b);
-  let place = st === 'working' ? 'hall' : st === 'meeting' ? S.meeting.place : idlePlace(S.hour, b.role, b);
+  let place = st === 'working' ? (b.id === S.elder ? 'hall' : wp) : st === 'meeting' ? S.meeting.place : idlePlace(S.hour, b.role, b);
   if (place === 'hall') return { key: 'hall', node: 'm240', enter: 'hall', pts: [[240, 110], [240, 101]] };
   if (place === 'library') return { key: 'library', node: 'b357', enter: 'library', pts: [[FEATURES.library.door, 301], [FEATURES.library.door, 296]] };
   if (place === 'plaza') { const p = plazaPoint(); return { key: 'plaza', node: 'm240', area: 'plaza', pts: [[240, 132], [240, 160], [p[0], 160], p] }; }
@@ -1365,8 +1378,10 @@ const LOOKS = {
 };
 const lookOf = b => LOOKS[b.role] || LOOKS.Researcher;
 // a look's joints (villager.json "joints", measured off the atlas by tools/art/joints.py) as whole logical px from the feet on a canvas drawn at k (room 2, map 3)
-const jointsOf = (b, dir, k) => { const J = VILLAGER.joints[lookFor(b).look][dir], f = v => v == null ? v : Array.isArray(v) ? v.map(n => Math.floor(n / k)) : Math.floor(v / k); return Object.fromEntries(Object.entries(J).map(([n, v]) => [n, f(v)])); };
-const SPRITE_SKIN = '#f9d5ba', armOf = b => lookOf(b).sleeve || '#e4a47c'; // sleeve colours read off the villager sprites (the blacksmith's arms are bare); b.color is only the bot's accent
+const jointsOf = (b, dir, k) => { const J = (castImg(b, dir) && CAST_JOINTS[castRole(b)][dir]) || VILLAGER.joints[lookFor(b).look][dir], f = v => v == null ? v : Array.isArray(v) ? v.map(n => Math.floor(n / k)) : Math.floor(v / k); return Object.fromEntries(Object.entries(J).map(([n, v]) => [n, f(v)])); };
+// hands stay free for animations: only the elder ever holds an item (Andre, 2026-10-21). Notes and books are still taken, just never drawn in a hand
+const holds = b => b.id === S.elder;
+const SPRITE_SKIN = '#f9d5ba', armOf = b => (castImg(b, 'down') && CAST_SLEEVE[castRole(b)]) || lookOf(b).sleeve || '#e4a47c'; // sleeve colours read off the villager sprites (the blacksmith's arms are bare); b.color is only the bot's accent
 document.getElementById('role-list').innerHTML = Object.entries(LOOKS).map(([r, l]) => `<li>${r} <small>(${l.title})</small></li>`).join('');
 function drawHat(c, b, L, x, hy, crown) {
   if (crown) { R(c, x - 4, hy - 3, 9, 3, P.out); R(c, x - 3, hy - 2, 7, 2, '#f2c14e'); R(c, x - 3, hy - 4, 1, 2, '#f2c14e'); R(c, x, hy - 4, 1, 2, '#f2c14e'); R(c, x + 3, hy - 4, 1, 2, '#f2c14e'); R(c, x, hy - 2, 1, 1, '#e5486b'); return; }
@@ -1470,8 +1485,8 @@ function draw(now, h) {
       const [, ny] = boardSlot(b.note.slot), left = b.note.slot % 2 === 0, J = jointsOf(b, 'up', 3), [sx, sy] = left ? J.shoulder_l : J.shoulder_r;
       const ax = bx + (left ? sx - 2 : sx + 1), ty = ny + 4 - (b.note.slot >> 2), sl = armOf(b);
       R(ctx, ax, ty + 2, 2, by + sy - ty - 1, sl); R(ctx, left ? ax : ax + 1, ty + 2, 1, by + sy - ty - 1, shade(sl, -0.3));
-      R(ctx, ax, ty, 2, 2, SPRITE_SKIN); R(ctx, ax - (left ? 0 : 1), ty - 2, 3, 2, '#f6f0e2');
-    } else if (b.hold > now) R(ctx, bx + 4, by - 9, 2, 2, '#f6f0e2'); // walking off with the taken note
+      R(ctx, ax, ty, 2, 2, SPRITE_SKIN); if (holds(b)) R(ctx, ax - (left ? 0 : 1), ty - 2, 3, 2, '#f6f0e2');
+    } else if (b.hold > now && holds(b)) R(ctx, bx + 4, by - 9, 2, 2, '#f6f0e2'); // walking off with the taken note
   });
   // night tint
   if (dk > 0) { ctx.fillStyle = `rgba(16,20,62,${dk})`; ctx.fillRect(0, 0, W, H); }
@@ -1936,7 +1951,8 @@ function zLetter(c, x, y, col) { R(c, x, y, 3, 1, col); R(c, x + 1, y + 1, 1, 1,
 function drawSleeper(c, b, bd, now) {
   const x = bd.x + 15, y = bd.y + 11;
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.beginPath(); c.rect(bd.x * 2, bd.y * 2, 60, 34); c.clip();
-  c.drawImage(sheetFor(b), 0, DIR.down * FR, FR, FR, x * 2 - 32, bd.y * 2 - 8, FR, FR);
+  const cast = castImg(b, 'down');
+  if (cast) c.drawImage(cast, 0, 0, 64, 64, x * 2 - CAST_ANCHOR.x, bd.y * 2 - 8, 64, 64); else c.drawImage(sheetFor(b), 0, DIR.down * FR, FR, FR, x * 2 - 32, bd.y * 2 - 8, FR, FR);
   c.restore();
   R(c, bd.x + 2, bd.y + 16, 26, 4, shade(b.color, 0.45)); R(c, bd.x + 2, bd.y + 19, 26, 1, shade(b.color, 0.2));
   for (let i = 0; i < 3; i++) { const ph = ((now / 1600) + i / 3 + b.id * 0.17) % 1; zLetter(c, Math.round(x + 8 + ph * 6), Math.round(y - 8 - ph * 14), `rgba(220,228,255,${1 - ph})`); }
@@ -2017,10 +2033,10 @@ function drawRoom(now, h) {
       const J = jointsOf(b, 'left', 2), [sx, sy] = J.shoulder_l, hx = Math.min(89 + 7, x + J.face[0] - 4), hy = stackTop - 1, sl = armOf(b);
       const ay = Math.min(hy + 1, y + sy), aw = Math.max(1, x + sx - hx - 1), ah = Math.max(2, y + sy + 1 - ay);
       R(c, hx + 2, ay, aw, ah, shade(sl, -0.3)); R(c, hx + 2, ay, aw, 1, shade(sl, 0.45)); R(c, hx, hy, 2, 2, SPRITE_SKIN); // light top row parts the arm from the robe
-      if (b.book) { R(c, hx - 1, hy - 2, 3, 2, cv); R(c, hx - 1, hy - 1, 3, 1, '#f6f0e2'); } // the closed book just above the hand
+      if (b.book && holds(b)) { R(c, hx - 1, hy - 2, 3, 2, cv); R(c, hx - 1, hy - 1, 3, 1, '#f6f0e2'); } // the closed book just above the hand
       return;
     }
-    if (!b.book) return;
+    if (!b.book || !holds(b)) return;
     if (b.deskDone && !b.leaving && b.ifx && x === b.ifx.x && y === b.ifx.y) { // reading: an open book at chest height, hands at its lower corners
       const x0 = x - 3, y0 = y - 13, flip = b.flipHold != null ? b.flipHold : (Date.now() + b.id * 1300) % 4000 < 300;
       R(c, x0, y0, 7, 4, shade(cv, -0.3)); R(c, x0 + 1, y0 + 1, 2, 2, '#f6f0e2'); R(c, x0 + 3, y0 + 1, 1, 2, '#c9b48a');
@@ -2259,20 +2275,27 @@ elderSel.addEventListener('change', () => {
 });
 
 const wsList = document.getElementById('ws-list'), wsSel = document.getElementById('summon-ws'), addWsBtn = document.getElementById('add-ws');
-const typeOpts = sel => Object.entries(WS_TYPES).map(([v, l]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${l}</option>`).join('');
+// the summon form's "Works at" offers only the buildings the chosen role may work in
+function fillWorksAt() {
+  const role = document.getElementById('summon-role').value, t = ROLE_BUILDING[role] || 'hall';
+  const opts = t === 'library' || t === 'hall' ? [[-1, BUILDING_NAME[t]]] : S.ws.map((w, i) => [i, w.name]).filter(([i]) => S.ws[i].type === t);
+  wsSel.innerHTML = (opts.length ? opts : [[-1, 'Town Hall (no ' + WS_TYPES[t] + ' yet)']]).map(([i, n]) => `<option value="${i}">${esc(n)}</option>`).join('');
+}
+document.getElementById('summon-role').addEventListener('change', () => fillWorksAt());
+const typeOpts = sel => Object.entries(WS_TYPES).map(([v, l]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${l} (${Object.keys(ROLE_BUILDING).find(r => ROLE_BUILDING[r] === v)})</option>`).join('');
 function renderWs() {
   wsList.innerHTML = S.ws.map((w, i) => `<div class="ws-row"><input type="text" id="ws-name-${i}" data-i="${i}" maxlength="18" value="${esc(w.name)}" aria-label="Workplace ${i + 1} name"><select id="ws-type-${i}" data-i="${i}" aria-label="Workplace ${i + 1} building">${typeOpts(w.type)}</select></div>`).join('');
-  wsSel.innerHTML = S.ws.map((w, i) => `<option value="${i}">${esc(w.name)}</option>`).join('');
+  fillWorksAt();
   addWsBtn.hidden = S.ws.length >= LOT_C.length;
 }
 wsList.addEventListener('input', e => {
   const i = +e.target.dataset.i; if (Number.isNaN(i) || e.target.tagName !== 'INPUT') return;
   S.ws[i].name = e.target.value.trim() || `Workplace ${i + 1}`;
-  wsSel.options[i].textContent = S.ws[i].name; buildSigns(); fillLook(); if (view === 'ws' + i) roomName.textContent = S.ws[i].name; dirty = true;
+  fillWorksAt(); buildSigns(); fillLook(); if (view === 'ws' + i) roomName.textContent = S.ws[i].name; dirty = true;
 });
 wsList.addEventListener('change', e => {
   if (e.target.tagName !== 'SELECT') return;
-  const i = +e.target.dataset.i; S.ws[i].type = e.target.value; buildBg();
+  const i = +e.target.dataset.i; S.ws[i].type = e.target.value; buildBg(); fillWorksAt();
 });
 addWsBtn.addEventListener('click', () => {
   if (S.ws.length >= LOT_C.length) return;
@@ -2291,7 +2314,7 @@ document.getElementById('summon-form').addEventListener('submit', e => {
   if (S.bots.length >= MAX_BOTS) { msg.textContent = 'All four houses are full (20 bots). The town is at capacity.'; return; }
   const whatEl = document.getElementById('summon-what'), what = whatEl.value.trim(), role = what ? mapRole(what) : document.getElementById('summon-role').value;
   if (!role) { msg.textContent = `I can't tell which role "${what}" is. Try a word like research, design, code, write, QA or admin, or pick one from the list.`; whatEl.focus(); return; }
-  summon({ name, role, ws: +wsSel.value });
+  summon({ name, role, ws: Math.max(0, +wsSel.value) }); // where it works comes from its role (workPlace)
   msg.textContent = ''; nameEl.value = ''; whatEl.value = '';
 });
 
@@ -2344,7 +2367,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveT
 // ?scene, it stays a sim unless ?live=<server> is given. ?town=<owner> picks whose town to follow.
 const LIVE_URL = 'https://bot-town.andrelesliemarks.workers.dev'; // the Worker's address once deployed (server/README.md), e.g. 'https://bot-town.<you>.workers.dev'
 const LIVE = { url: MODE === 'sim' ? '' : MODE === 'live' ? PARAMS.get('live') || LIVE_URL : PARAMS.get('live') || (location.protocol === 'file:' || PARAMS.has('scene') ? '' : LIVE_URL), town: (PARAMS.get('town') || 'andre').toLowerCase() };
-const ROLE_WS = { 'Chief of Staff': 0, Engineer: 0, Researcher: 1, Designer: 2, Writer: 2, Analyst: 3 };
+const ROLE_WS = { 'Chief of Staff': 0, Engineer: 0, Researcher: 1, Designer: 2, Writer: 2, Analyst: 3 }; // only a starting lot; workPlace() picks the building
 const liveRole = (name, role) => mapRole(role) || Object.keys(TASKS)[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % Object.keys(TASKS).length];
 const liveOk = o => o && typeof o.name === 'string' && o.name.trim() && ['working', 'idle', 'asleep'].includes(o.state);
 const liveTask = o => o.state === 'working' ? String(o.task || '').slice(0, 80) || 'On a task' : '';
@@ -2543,6 +2566,7 @@ window.__villagerClip = ({ role = 'Engineer', name = 'Bolt', slot = 1, step = 40
 };
 // read-only test hook for the cast walk proof: one cast bot (role, or elder) walks a square (down, right, up, left, `leg` ms each)
 // and then stands, drawn by drawChar with the town's own walk bob, frame by frame on a stepped clock (exact frames, not captures)
+window.__roleWork = () => S.bots.map(b => ({ name: b.name, role: b.role, elder: b.id === S.elder, cast: castRole(b), place: workPlace(b), type: bKind(workPlace(b)), allowed: ROLE_BUILDING[b.role] }));
 window.__castClip = ({ role = 'Engineer', elder = false, step = 50, leg = 1200, rest = 600 } = {}) => {
   const c = document.createElement('canvas'); c.width = 200; c.height = 200; const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
   const b = { id: elder ? S.elder : -1, name: role, role, slot: 1, dir: 'down', ...paceOf(role) }, out = [], t0 = 1e6, v = 60 / leg;
