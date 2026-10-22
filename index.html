@@ -1177,9 +1177,39 @@ function walkFacing(dx, dy, cur) {
 const sideFace = d => d === 'left' || d === 'right';
 function syncDev(b, k, inside) { if (inside) { b.ix = b.devX / k; b.iy = b.devY / k; } else { b.x = b.devX / k; b.y = b.devY / k; } }
 function resetGait(b) { b.gaitF = 0; b.gaitInto = 0; b.walkDist = 0; b.pendX = 0; b.pendY = 0; b.gaitStop = null; }
+// A walk that reaches its end stands at once (the still is drawn on the very next frame, never a held contact pose), at the exact
+// path end: the gait lags the path by less than one frame step, so this closes a gap of a few device px, not a stride.
 function endGait(b, inside, now) {
+  if (inside) { b.ix = b.sx; b.iy = b.sy; } else { b.x = b.sx; b.y = b.sy; }
   b.gaitOn = false; b.gaitStop = null; b.walking = false; b.iwalk = false;
   if (!inside && !(b.path && b.path.length)) arrive(b, now);
+}
+// device px from the drawn frame to the next contact (f0 or f4); 0 on a contact
+function toContact(b) {
+  if ((b.gaitF === 0 || b.gaitF === 4) && b.gaitInto < 1e-4) return 0;
+  let d = -b.gaitInto, f = b.gaitF;
+  do { d += GAIT_STEP[f]; f = (f + 1) % 8; } while (f !== 0 && f !== 4);
+  return d;
+}
+// A turn waits for a contact, and the frames only ever go forward: one frame per rendered tick (a sped-up advance, at most 4 ticks)
+// until the next contact is drawn, then the walker faces the new way on that same frame. Never a backward jump, a skipped frame or a
+// frame held with no travel. Returns true once the turn has landed.
+function landTurn(b, k, inside) {
+  if (toContact(b) > 0) {
+    const step = GAIT_STEP[b.gaitF];
+    b.gaitF = (b.gaitF + 1) % 8; b.gaitInto = 0; b.walkDist += step;
+    applyFrameStep(b, step, k, inside);
+    return false; // drawn this tick; the turn lands on the next
+  }
+  turnHere(b, inside);
+  return true;
+}
+// face the new way on the contact just drawn: the walk goes on from that frame (f4 stays f4), nothing jumps
+function turnHere(b, inside) {
+  const f = b.gaitF;
+  b.dir = b.gaitWant || b.dir;
+  resetGait(b); b.gaitF = f;
+  b.sx = inside ? b.ix : b.x; b.sy = inside ? b.iy : b.y;
 }
 // Side x jumps by the stance foot's back-step, so that foot stays put for the plant. On a down/up facing, pending
 // x and y are both spent on every frame change in the same 4,3,3,4 shares, so a steep diagonal never hops sideways
@@ -1207,12 +1237,8 @@ function pushDist(b, add, k, inside, now) {
     const step = GAIT_STEP[b.gaitF];
     b.gaitF = (b.gaitF + 1) % 8;
     applyFrameStep(b, step, k, inside);
-    if ((b.gaitF === 0 || b.gaitF === 4) && b.gaitStop) {
-      if (b.gaitStop === 'turn') {
-        b.dir = b.gaitWant || b.dir;
-        resetGait(b);
-        b.sx = inside ? b.ix : b.x; b.sy = inside ? b.iy : b.y;
-      } else b.gaitStop = 'settled'; // draw this contact, the next tick is the still
+    if ((b.gaitF === 0 || b.gaitF === 4) && b.gaitStop === 'turn') {
+      turnHere(b, inside);
       return;
     }
   }
@@ -1227,7 +1253,7 @@ function pullPath(b, inside, k, budget) {
     const ex = px - b.sx, ey = py - b.sy, want = walkFacing(ex, ey, b.dir);
     if (want !== b.dir) {
       if ((b.gaitF === 0 || b.gaitF === 4) && b.gaitInto < 1e-4 && !b.gaitStop) {
-        b.dir = want; resetGait(b);
+        const f = b.gaitF; b.dir = want; resetGait(b); b.gaitF = f; // a turn on a contact goes on from that frame
       } else { b.gaitStop = 'turn'; b.gaitWant = want; return { dx, dy, used: budget - left, done: false, hold: true, reroute: false }; }
     }
     const dist = Math.hypot(ex, ey);
@@ -1263,10 +1289,10 @@ function beginGait(b, inside, k) {
 // budget is world px this tick. The frame clock spends device px (budget * k) in foot steps of GAIT_STEP.
 function stepGait(b, budget, inside, now) {
   const k = inside ? 2 : 3;
-  if (b.gaitStop === 'settled') { endGait(b, inside, now); return; }
   if (!b.gaitOn) beginGait(b, inside, k);
   if (inside) b.iwalk = true; else b.walking = true;
   let moved = { dx: 0, dy: 0, used: 0, done: false, hold: false, reroute: false };
+  const f0 = b.gaitF; // one frame a tick at most: a turn's advance waits if travel already changed the frame
   if (!b.gaitStop) {
     moved = pullPath(b, inside, k, budget);
     if (moved.reroute) return;
@@ -1275,16 +1301,10 @@ function stepGait(b, budget, inside, now) {
     const gained = sideFace(b.dir) ? Math.abs(moved.dx) * k : Math.hypot(moved.dx, moved.dy) * k;
     if (gained > 0) pushDist(b, gained, k, inside, now);
     if (!b.gaitOn) return;
-    // a turn that already landed clears gaitStop inside pushDist; don't arm it again
-    if (moved.done && !b.gaitStop) {
-      const fresh = (b.gaitF === 0 || b.gaitF === 4) && b.gaitInto < 1e-4;
-      if (fresh) { b.gaitStop = 'settled'; return; }
-      b.gaitStop = 'end';
-    }
+    if (moved.done && !b.gaitStop) { endGait(b, inside, now); return; } // the end of the path: stand at once
   }
-  if (b.gaitStop === 'settled' || !b.gaitOn || !b.gaitStop) return;
-  const coast = budget - moved.used;
-  if (coast > 1e-8) pushDist(b, coast * k, k, inside, now);
+  if (!b.gaitOn || b.gaitStop !== 'turn' || b.gaitF !== f0) return;
+  landTurn(b, k, inside);
 }
 function update(b, dt, now) {
   if (b.state === 'summoning') {
