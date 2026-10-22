@@ -363,7 +363,7 @@ for (const r of CAST_ROLES) for (const d in CAST_SRC) IMG_SRC['cast_' + r + '_' 
 // the stills. The body bob is drawn in the art (walk/timing.json dy), so the cast gets no code lift. The frame comes from
 // distance, not the clock: the planted boot steps back 4,3,3,4 device px (side-motion.json; 14 a half cycle, 28 a cycle).
 // CAST_WALK.ms is that art's 120/110/100/110 weights, not a clock. The town walks at timing.json walk_speed
-// (17 world px/s, ~549 ms a cycle), so those weights are not a tighter cap. foot_speed is only the rate the boot was drawn at.
+// (10.6 world px/s at k=3, ~880 ms a cycle), so those weights are not a tighter cap. foot_speed is only the rate the boot was drawn at.
 const CAST_WALK = { ms: [120, 110, 100, 110, 120, 110, 100, 110], n: 8, frames: [0, 1, 2, 3, 4, 5, 6, 7] };
 const GAIT_STEP = [4, 3, 3, 4, 4, 3, 3, 4]; // device px the stance foot shifts back as each frame leaves (both halves)
 for (const r of CAST_ROLES) for (const d in CAST_SRC) for (let i = 0; i < CAST_WALK.n; i++) IMG_SRC['castw_' + r + '_' + d + '_' + i] = `assets/cast/walk/${r}-${d}-${i}.png`;
@@ -1307,7 +1307,7 @@ function update(b, dt, now) {
     else if (b.goal && b.goal.area && now > b.wanderAt && !S.pinned) wander(b, now);
   }
   b.walking = false;
-  let budget = 17 * paceBehind(b) * dt;
+  let budget = 10.6 * paceBehind(b) * dt;
   if (b.path.length || b.gaitOn) stepGait(b, budget, false, now);
   if (b.arrived && !b.path.length && b.bspot != null && b.bspot !== 'wait' && b.goalKey === 'board' + b.bspot) { // at its spot: face up 0.6 s, reach 0.4 s (the note comes off at the reach), then off with the note in hand
     const bt = b.bt || (b.bt = { ph: 'face', t: now });
@@ -1366,7 +1366,7 @@ function updateInside(b, dt, now) {
     }
   }
   b.iwalk = false;
-  let budget = 17 * 3 / 2 * b.speed * dt;
+  let budget = 10.6 * 3 / 2 * b.speed * dt;
   if (b.ipath.length || b.gaitOn) stepGait(b, budget, true, now);
   if (!b.ipath.length && !b.gaitOn) {
     if (lib && b.istation === 'desk' && (b.ret || !b.leaving && !b.deskDone)) {

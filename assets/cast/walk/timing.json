@@ -19,7 +19,7 @@
   1,
   0
  ],
- "walk_speed": 17,
+ "walk_speed": 10.6,
  "foot_speed": 30,
  "foot_top": {
   "base-down": 52,
@@ -28,8 +28,8 @@
   "base-left": 50,
   "elder-down": 59,
   "elder-up": 59,
-  "elder-right": 59,
-  "elder-left": 59,
+  "elder-right": 58,
+  "elder-left": 58,
   "steward-down": 54,
   "steward-up": 54,
   "steward-right": 52,
