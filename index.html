@@ -306,7 +306,6 @@ function setElder(id) { S.elder = id; const b = S.bots.find(o => o.id === id); i
 const LOOK_INFO = { steward: { sex: 'male', title: 'Steward' }, blacksmith: { sex: 'male', title: 'Blacksmith' }, artisan: { sex: 'female', title: 'Artisan' }, wizard: { sex: 'female', title: 'Wizard' }, scribe: { sex: 'female', title: 'Scribe' }, alchemist: { sex: 'male', title: 'Alchemist' } };
 const HAIR_M = ['bangsshort', 'curly_short', 'bedhead', 'buzzcut'], HAIR_F = ['bob', 'ponytail', 'long', 'bangslong'];
 const HAIR_C = ['chestnut', 'dark_brown', 'blonde', 'black', 'ginger', 'light_brown', 'raven', 'sandy'];
-function faceDir(dx, dy, cur) { if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return cur; return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'); }
 function loadAll() { return Promise.all(Object.entries(IMG_SRC).map(([k, src]) => new Promise((res, rej) => { const im = new Image(); im.onload = () => { IMG[k] = im; res(); }; im.onerror = () => rej(new Error('Could not load ' + k)); im.src = src; }))); }
 // ---------- character sheets ----------
 const sheetCache = {};
@@ -361,9 +360,12 @@ const CAST_OF = { 'Chief of Staff': 'steward', Engineer: 'engineer', Designer: '
 const CAST_SRC = { up: r => `assets/cast/turnaround/${r}-back.png`, down: r => `assets/cast/masters/${r}.png`, right: r => `assets/cast/turnaround/${r}-side-right.png`, left: r => `assets/cast/turnaround/${r}-side-left.png` };
 for (const r of CAST_ROLES) for (const d in CAST_SRC) IMG_SRC['cast_' + r + '_' + d] = CAST_SRC[d](r);
 // walk cycles (tools/art/walk/build_walk.py): 8 frames per facing (contact, down, pass, up, x2), the same anchor and palette as
-// the stills. The body bob is drawn in the art (walk/timing.json dy), so the cast gets no code lift; one ms entry per art frame
-// (880 ms a cycle on the bot's own clock: the planted boot moves back at the walk budget's 30 px/s; walk_frames.py checks both)
+// the stills. The body bob is drawn in the art (walk/timing.json dy), so the cast gets no code lift. The frame comes from
+// distance, not the clock: the planted boot steps back 4,3,3,4 device px (side-motion.json; 14 a half cycle, 28 a cycle).
+// CAST_WALK.ms is that art's 120/110/100/110 weights, not a clock. The town walks at timing.json walk_speed
+// (17 world px/s, ~549 ms a cycle), so those weights are not a tighter cap. foot_speed is only the rate the boot was drawn at.
 const CAST_WALK = { ms: [120, 110, 100, 110, 120, 110, 100, 110], n: 8, frames: [0, 1, 2, 3, 4, 5, 6, 7] };
+const GAIT_STEP = [4, 3, 3, 4, 4, 3, 3, 4]; // device px the stance foot shifts back as each frame leaves (both halves)
 for (const r of CAST_ROLES) for (const d in CAST_SRC) for (let i = 0; i < CAST_WALK.n; i++) IMG_SRC['castw_' + r + '_' + d + '_' + i] = `assets/cast/walk/${r}-${d}-${i}.png`;
 const castRole = b => b.id === S.elder ? 'elder' : CAST_OF[b.role] || null;
 const castExtra = b => { const j = castImg(b, 'down') && CAST_JOINTS[castRole(b)]; return j ? Math.max(0, -48 - j.down.head_top) : 0; }; // rows of headwear above the usual head top (wizard hat: 11)
@@ -398,7 +400,7 @@ function motion(b, walking, anim, t, now) {
   let bob = 0, top = 0, step = null;
   if (walking) {
     const an = VILLAGER.anims[anim];
-    if (castImg(b, 'down')) step = animAt(CAST_WALK, t).i; // cast walk frame: its own timing, bob in the art (no lift)
+    if (castImg(b, 'down')) step = b.gaitOn ? b.gaitF : animAt(CAST_WALK, t).i; // distance gait when the town is walking; clips still pass a clock
     else if (an.lift) { const { i, k } = animAt(an, t); bob = ease(an.lift[i], an.lift[(i + 1) % an.lift.length], k); }
   } else {
     if (mo.walking) { mo.stopAt = now; mo.vx += M.hair.kick * (b.dir === 'right' ? 1 : b.dir === 'left' ? -1 : 0); mo.vy += M.hair.kick * 0.5; }
@@ -1166,6 +1168,124 @@ function finish(b) { addLog(`${b.name} finished: ${b.task}`); say(b, 'Done!'); b
 function wake(b) { b.state = 'idle'; b.idlePick = null; say(b, S.hour >= 5 && S.hour < 12 ? 'Good morning!' : 'I’m up.'); addLog(`${b.name} woke up`); }
 function sleep(b) { b.state = 'asleep'; b.task = ''; say(b, 'Goodnight.'); addLog(`${b.name} went quiet and headed to bed`); }
 
+// A diagonal faces side when it runs at least as far in x as in y (the feet step in x). Steeper than that is down/up.
+function walkFacing(dx, dy, cur) {
+  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return cur || 'down';
+  if (Math.abs(dx) >= Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+  return dy > 0 ? 'down' : 'up';
+}
+const sideFace = d => d === 'left' || d === 'right';
+function syncDev(b, k, inside) { if (inside) { b.ix = b.devX / k; b.iy = b.devY / k; } else { b.x = b.devX / k; b.y = b.devY / k; } }
+function resetGait(b) { b.gaitF = 0; b.gaitInto = 0; b.walkDist = 0; b.pendX = 0; b.pendY = 0; b.gaitStop = null; }
+function endGait(b, inside, now) {
+  b.gaitOn = false; b.gaitStop = null; b.walking = false; b.iwalk = false;
+  if (!inside && !(b.path && b.path.length)) arrive(b, now);
+}
+// Side x jumps by the stance foot's back-step, so that foot stays put for the plant. On a down/up facing, pending
+// x and y are both spent on every frame change in the same 4,3,3,4 shares, so a steep diagonal never hops sideways
+// at the contact. Spend never crosses past the pending amount.
+function spendPend(pend, step) {
+  const cap = Math.min(step, Math.abs(pend));
+  let n = Math.round(cap);
+  if (n > Math.abs(pend)) n = Math.floor(Math.abs(pend) + 1e-6);
+  return Math.sign(pend) * n;
+}
+function applyFrameStep(b, step, k, inside) {
+  if (sideFace(b.dir)) b.devX += b.dir === 'left' ? -step : step;
+  else { const hx = spendPend(b.pendX, step); b.devX += hx; b.pendX -= hx; }
+  const hy = spendPend(b.pendY, step);
+  b.devY += hy; b.pendY -= hy;
+  syncDev(b, k, inside);
+}
+function pushDist(b, add, k, inside, now) {
+  let left = add;
+  while (left > 1e-6 && b.gaitOn) {
+    const need = GAIT_STEP[b.gaitF] - b.gaitInto;
+    if (need > 1e-6 && left < need - 1e-6) { b.gaitInto += left; b.walkDist += left; return; }
+    const take = Math.min(left, Math.max(need, 0));
+    b.gaitInto = 0; b.walkDist += take; left -= take;
+    const step = GAIT_STEP[b.gaitF];
+    b.gaitF = (b.gaitF + 1) % 8;
+    applyFrameStep(b, step, k, inside);
+    if ((b.gaitF === 0 || b.gaitF === 4) && b.gaitStop) {
+      if (b.gaitStop === 'turn') {
+        b.dir = b.gaitWant || b.dir;
+        resetGait(b);
+        b.sx = inside ? b.ix : b.x; b.sy = inside ? b.iy : b.y;
+      } else b.gaitStop = 'settled'; // draw this contact, the next tick is the still
+      return;
+    }
+  }
+}
+function pullPath(b, inside, k, budget) {
+  let dx = 0, dy = 0, left = budget;
+  const path = () => inside ? b.ipath : b.path;
+  while (left > 1e-8) {
+    const raw = path()[0];
+    if (!raw) return { dx, dy, used: budget - left, done: true, hold: false, reroute: false };
+    const px = inside ? raw[0] : raw.x, py = inside ? raw[1] : raw.y;
+    const ex = px - b.sx, ey = py - b.sy, want = walkFacing(ex, ey, b.dir);
+    if (want !== b.dir) {
+      if ((b.gaitF === 0 || b.gaitF === 4) && b.gaitInto < 1e-4 && !b.gaitStop) {
+        b.dir = want; resetGait(b);
+      } else { b.gaitStop = 'turn'; b.gaitWant = want; return { dx, dy, used: budget - left, done: false, hold: true, reroute: false }; }
+    }
+    const dist = Math.hypot(ex, ey);
+    if (dist <= left) {
+      dx += ex; dy += ey; left -= dist; b.sx = px; b.sy = py;
+      if (!inside && raw.node && path().length > 1) {
+        path().shift();
+        const gl = goalFor(b);
+        if (gl.key !== b.goalKey) {
+          b.anchor = raw.node; b.exit = [];
+          b.devX = Math.round(b.sx * k); b.devY = Math.round(b.sy * k); syncDev(b, k, inside);
+          resetGait(b);
+          routeTo(b, gl); b.sx = b.x; b.sy = b.y;
+          return { dx: 0, dy: 0, used: budget - left, done: false, hold: false, reroute: true };
+        }
+      } else path().shift();
+      if (!path().length) return { dx, dy, used: budget - left, done: true, hold: false, reroute: false };
+    } else {
+      const ux = ex / dist, uy = ey / dist;
+      b.sx += ux * left; b.sy += uy * left; dx += ux * left; dy += uy * left; left = 0;
+    }
+  }
+  return { dx, dy, used: budget - left, done: !path().length, hold: false, reroute: false };
+}
+function beginGait(b, inside, k) {
+  b.gaitOn = true; resetGait(b);
+  const x = inside ? b.ix : b.x, y = inside ? b.iy : b.y;
+  b.devX = Math.round(x * k); b.devY = Math.round(y * k); syncDev(b, k, inside);
+  b.sx = inside ? b.ix : b.x; b.sy = inside ? b.iy : b.y;
+  const raw = (inside ? b.ipath : b.path)[0];
+  if (raw) b.dir = walkFacing((inside ? raw[0] : raw.x) - b.sx, (inside ? raw[1] : raw.y) - b.sy, b.dir);
+}
+// budget is world px this tick. The frame clock spends device px (budget * k) in foot steps of GAIT_STEP.
+function stepGait(b, budget, inside, now) {
+  const k = inside ? 2 : 3;
+  if (b.gaitStop === 'settled') { endGait(b, inside, now); return; }
+  if (!b.gaitOn) beginGait(b, inside, k);
+  if (inside) b.iwalk = true; else b.walking = true;
+  let moved = { dx: 0, dy: 0, used: 0, done: false, hold: false, reroute: false };
+  if (!b.gaitStop) {
+    moved = pullPath(b, inside, k, budget);
+    if (moved.reroute) return;
+    if (sideFace(b.dir)) b.pendY += moved.dy * k;
+    else { b.pendX += moved.dx * k; b.pendY += moved.dy * k; }
+    const gained = sideFace(b.dir) ? Math.abs(moved.dx) * k : Math.hypot(moved.dx, moved.dy) * k;
+    if (gained > 0) pushDist(b, gained, k, inside, now);
+    if (!b.gaitOn) return;
+    // a turn that already landed clears gaitStop inside pushDist; don't arm it again
+    if (moved.done && !b.gaitStop) {
+      const fresh = (b.gaitF === 0 || b.gaitF === 4) && b.gaitInto < 1e-4;
+      if (fresh) { b.gaitStop = 'settled'; return; }
+      b.gaitStop = 'end';
+    }
+  }
+  if (b.gaitStop === 'settled' || !b.gaitOn || !b.gaitStop) return;
+  const coast = budget - moved.used;
+  if (coast > 1e-8) pushDist(b, coast * k, k, inside, now);
+}
 function update(b, dt, now) {
   if (b.state === 'summoning') {
     if (b.spot == null) {
@@ -1181,23 +1301,14 @@ function update(b, dt, now) {
   if (b.spot != null && Math.hypot(b.x - HILL.spots[b.spot][0], b.y - HILL.spots[b.spot][1]) >= 20) b.spot = null;
   if (b.bspot != null && !(b.state === 'idle' && b.note && b.note.done)) { b.bspot = b.bt = null; if (b.note && b.note.inHand) b.note = null; } // not (or no longer) on a board errand
   if (b.inside) { updateInside(b, dt, now); return; }
-  if (!b.path.length) {
+  if (!b.path.length && !b.gaitStop) {
     const gl = goalFor(b);
     if (gl.key !== b.goalKey) routeTo(b, gl);
     else if (b.goal && b.goal.area && now > b.wanderAt && !S.pinned) wander(b, now);
   }
   b.walking = false;
-  let budget = 34 * paceBehind(b) * dt;
-  while (b.path.length && budget > 0) {
-    const p = b.path[0], dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy);
-    b.dir = faceDir(dx, dy, b.dir);
-    b.walking = true;
-    if (d <= budget) {
-      b.x = p.x; b.y = p.y; budget -= d; b.path.shift();
-      if (p.node && b.path.length) { const gl = goalFor(b); if (gl.key !== b.goalKey) { b.anchor = p.node; b.exit = []; routeTo(b, gl); } }
-      if (!b.path.length) { arrive(b, now); break; }
-    } else { b.x += dx / d * budget; b.y += dy / d * budget; budget = 0; }
-  }
+  let budget = 17 * paceBehind(b) * dt;
+  if (b.path.length || b.gaitOn) stepGait(b, budget, false, now);
   if (b.arrived && !b.path.length && b.bspot != null && b.bspot !== 'wait' && b.goalKey === 'board' + b.bspot) { // at its spot: face up 0.6 s, reach 0.4 s (the note comes off at the reach), then off with the note in hand
     const bt = b.bt || (b.bt = { ph: 'face', t: now });
     if (bt.ph === 'face' && now - bt.t >= 600) { bt.ph = 'reach'; bt.t = now; b.note.inHand = true; S.pins[b.note.slot] = b.color; }
@@ -1239,29 +1350,25 @@ function lPath(x0, y0, x1, y1) {
 const DESK = { x: 104, y: 132 }, COVERS = ['#a2342c', '#37478f', '#36744a', '#c9a24a', '#2d6673'];
 function updateInside(b, dt, now) {
   const gl = goalFor(b), lib = b.inside === 'library';
-  if (gl.key !== b.goalKey) {
-    if (!b.leaving) {
-      b.leaving = true; b.inBed = false; b.istation = null; b.ipath = lPath(b.ix, b.iy, DOOR_I.x, DOOR_I.y); dirty = true;
-      if (lib && b.book) { b.ret = true; b.istation = 'desk'; b.ipath = lPath(b.ix, b.iy, DESK.x, DESK.y); }
-      else b.dk = null;
-    }
-  } else if (!b.leaving) {
-    if (lib && !b.deskDone) { if (b.istation !== 'desk') { b.istation = 'desk'; b.ifx = { ...DESK, key: 'desk' }; b.ipath = lPath(b.ix, b.iy, DESK.x, DESK.y); } }
-    else {
-      const st = stationOf(b);
-      if (st.key !== b.istation) { b.istation = st.key; b.ifx = st; b.inBed = false; b.ipath = lPath(b.ix, b.iy, st.x, st.y); }
+  if (!b.gaitStop) {
+    if (gl.key !== b.goalKey) {
+      if (!b.leaving) {
+        b.leaving = true; b.inBed = false; b.istation = null; b.ipath = lPath(b.ix, b.iy, DOOR_I.x, DOOR_I.y); dirty = true;
+        if (lib && b.book) { b.ret = true; b.istation = 'desk'; b.ipath = lPath(b.ix, b.iy, DESK.x, DESK.y); }
+        else b.dk = null;
+      }
+    } else if (!b.leaving) {
+      if (lib && !b.deskDone) { if (b.istation !== 'desk') { b.istation = 'desk'; b.ifx = { ...DESK, key: 'desk' }; b.ipath = lPath(b.ix, b.iy, DESK.x, DESK.y); } }
+      else {
+        const st = stationOf(b);
+        if (st.key !== b.istation) { b.istation = st.key; b.ifx = st; b.inBed = false; b.ipath = lPath(b.ix, b.iy, st.x, st.y); }
+      }
     }
   }
   b.iwalk = false;
-  let budget = 30 * b.speed * dt;
-  while (b.ipath.length && budget > 0) {
-    const [px, py] = b.ipath[0], dx = px - b.ix, dy = py - b.iy, d = Math.hypot(dx, dy);
-    b.dir = faceDir(dx, dy, b.dir);
-    b.iwalk = true;
-    if (d <= budget) { b.ix = px; b.iy = py; budget -= d; b.ipath.shift(); }
-    else { b.ix += dx / d * budget; b.iy += dy / d * budget; budget = 0; }
-  }
-  if (!b.ipath.length) {
+  let budget = 17 * 3 / 2 * b.speed * dt;
+  if (b.ipath.length || b.gaitOn) stepGait(b, budget, true, now);
+  if (!b.ipath.length && !b.gaitOn) {
     if (lib && b.istation === 'desk' && (b.ret || !b.leaving && !b.deskDone)) {
       // desk timers run on `now`: face the desk 0.6 s, take frame 0.4 s (the book appears); on the way out the return frame 0.4 s (the book goes to the returns pile)
       if (!b.dk) { b.dk = { ph: b.ret ? 'ret' : 'face', t: now }; if (b.ret) { b.book = null; S.libRet = (S.libRet || 0) + 1; } }
@@ -1422,9 +1529,10 @@ function drawHair(c, b, x, hy) {
 function drawBot(c, b, x, y, walk, t) {
   const k = c === rctx ? 2 : 3;
   const d = walk ? b.dir : c === rctx && b.dk ? 'left' : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && b.bt && 'up') || (c === ctx && atHang(b) && HANG[b.hang].dir) || b.dir || 'down'); // idle: the last facing
-  const dir = typeof d === 'string' ? d : 'down', anim = walk ? 'walk_' + dir : 'stand', at = (t + b.phase) * b.speed; // its own pace: legs keep up with its speed
+  const dir = typeof d === 'string' ? d : 'down', anim = walk ? 'walk_' + dir : 'stand';
+  const at = walk && castImg(b, 'down') ? 0 : (t + (b.phase || 0)) * (b.speed || 1); // cast steps from walkDist; the clock is only idle and non-cast
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
-  drawChar(c, b, x * k, y * k, dir, animFrame(VILLAGER, anim, at), motion(b, walk, anim, at, t));
+  drawChar(c, b, Math.round(x * k), Math.round(y * k), dir, animFrame(VILLAGER, anim, at), motion(b, walk, anim, at, t));
   c.restore();
 }
 function smoke(cx, cy, t, kind, strength) {
@@ -1488,7 +1596,7 @@ function draw(now, h) {
   for (let i = 0; i < 12; i++) { const an = i / 12 * Math.PI * 2 + now / 2400; R(ctx, Math.round(SLATE.x + Math.cos(an) * 11), Math.round(SLATE.y + Math.sin(an) * 6), 1, 1, summoning ? '#e6fbff' : (i % 3 ? '#5fc7d8' : '#3e8fa0')); }
   // bots
   S.bots.filter(b => !b.inside && (b.state !== 'summoning' || now >= b.summonAt + 1000)).sort((a, c) => a.y - c.y).forEach(b => {
-    if (atHang(b) && HANG[b.hang].pose === 'sit') drawSitter(ctx, b, HANG[b.hang], now); else drawBot(ctx, b, Math.round(b.x), Math.round(b.y), b.walking, now);
+    if (atHang(b) && HANG[b.hang].pose === 'sit') drawSitter(ctx, b, HANG[b.hang], now); else drawBot(ctx, b, b.x, b.y, b.walking, now);
     if (atHang(b) && HANG[b.hang].act) hangFx(ctx, b, now);
     const bx = Math.round(b.x), by = Math.round(b.y);
     if (b.bt && b.bt.ph === 'reach' && b.note) { // taking its note down, facing up: a 2 px sleeve-coloured arm from the shoulder joint (just outside it) on the slot's side, up to a 2x2 hand holding the note at the slot's lower edge
@@ -2033,8 +2141,8 @@ function drawRoom(now, h) {
   }
   inside.slice().sort((a, b) => (a.inBed === b.inBed ? a.iy - b.iy : a.inBed ? -1 : 1)).forEach(b => {
     if (b.inBed) drawSleeper(c, b, reg.beds[bedOf(b)], now);
-    else if (b.ifx && b.ifx.sit && b.istation === b.ifx.key && !b.iwalk && !b.leaving) { c.save(); c.beginPath(); c.rect(0, 0, IW, b.ifx.sit); c.clip(); drawBot(c, b, Math.round(b.ix), Math.round(b.iy), false, now); c.restore(); }
-    else drawBot(c, b, Math.round(b.ix), Math.round(b.iy), b.iwalk, now);
+    else if (b.ifx && b.ifx.sit && b.istation === b.ifx.key && !b.iwalk && !b.leaving) { c.save(); c.beginPath(); c.rect(0, 0, IW, b.ifx.sit); c.clip(); drawBot(c, b, b.ix, b.iy, false, now); c.restore(); }
+    else drawBot(c, b, b.ix, b.iy, b.iwalk, now);
   });
   if (kind === 'library') inside.forEach(b => {
     const x = Math.round(b.ix), y = Math.round(b.iy), cv = b.book || COVERS[b.id % 5], dir = b.iwalk ? b.dir : 'down';

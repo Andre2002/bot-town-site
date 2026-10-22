@@ -19,7 +19,8 @@
   1,
   0
  ],
- "speed": 30,
+ "walk_speed": 17,
+ "foot_speed": 30,
  "foot_top": {
   "base-down": 52,
   "base-up": 52,
