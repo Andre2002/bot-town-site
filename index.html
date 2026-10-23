@@ -1162,6 +1162,8 @@ function boardGoal(b) {
 // the lab's shop-window rack: one bottle per finished brew, emptied each dawn (brew day = sim date minus 6 h)
 const RACK_COLS = ['#8bd46a', '#e5486b', '#6fd0e8', '#c08cf0'];
 const brewDay = () => new Date(simNow() - 6 * 3600e3).toDateString();
+// the pub's chairs whose drinker left (an empty mug stays there until dawn): S.pub = { day, empty: [chair numbers] }
+const pubEmpty = () => (S.pub = S.pub?.day === brewDay() ? S.pub : { day: brewDay(), empty: [] }).empty;
 function rackOf(k) { const day = brewDay(); return S.rack[k]?.day === day ? S.rack[k] : (S.rack[k] = { n: 0, day }); }
 function finish(b) { if (S.ws[b.ws]?.type === 'lab') { const r = rackOf(b.ws); r.n = Math.min(4, r.n + 1); S.puffs.push({ k: b.ws, col: RACK_COLS[r.n - 1], t0: Date.now() }); }
   addLog(`${b.name} finished: ${b.task}`); say(b, 'Done!'); b.state = 'idle'; b.task = ''; b.idlePick = null; }
@@ -1373,6 +1375,7 @@ function updateInside(b, dt, now) {
   if (!b.gaitStop) {
     if (gl.key !== b.goalKey) {
       if (!b.leaving) {
+        if (b.ifx && b.ifx.chair != null && b.istation === b.ifx.key && !b.ipath.length && !pubEmpty().includes(b.ifx.chair)) pubEmpty().push(b.ifx.chair); // a drinker getting up leaves the empty mug
         b.leaving = true; b.inBed = false; b.istation = null; b.ipath = lPath(b.ix, b.iy, DOOR_I.x, DOOR_I.y); dirty = true;
         if (lib && b.book) { b.ret = true; b.istation = 'desk'; b.ipath = lPath(b.ix, b.iy, DESK.x, DESK.y); }
         else b.dk = null;
@@ -1400,6 +1403,7 @@ function updateInside(b, dt, now) {
       b.leaving = false; b.inside = null; b.iwalk = false;
       b.x = b.doorPt[0]; b.y = b.doorPt[1]; routeTo(b, gl);
     } else if (b.istation === 'bed' && b.state === 'asleep') b.inBed = true;
+    else if (b.ifx && b.ifx.chair != null && b.istation === b.ifx.key && pubEmpty().includes(b.ifx.chair)) pubEmpty().splice(pubEmpty().indexOf(b.ifx.chair), 1); // a new sitter gets a fresh drink
   }
 }
 
@@ -1439,10 +1443,6 @@ function hangFx(c, b, now) {
   if (h.act === 'stones') {
     if (ph < 0.3) { const k = ph / 0.3, sx = b.x + (h.tx - b.x) * k, sy = b.y - 12 + (h.ty - b.y + 12) * k - Math.sin(k * Math.PI) * 6; R(c, Math.round(sx), Math.round(sy), 1, 1, '#d8d2c4'); }
     else { const k = (ph - 0.3) / 0.7; c.strokeStyle = `rgba(214,240,245,${0.85 * (1 - k)})`; c.lineWidth = 1; c.beginPath(); c.ellipse(h.tx + 0.5, h.ty + 0.5, 1 + k * 5, 0.5 + k * 2, 0, 0, Math.PI * 2); c.stroke(); }
-  } else if (h.act === 'mug') {
-    const side = h.dir === 'left' ? -6 : 5, lift = (now + b.id * 1311) % 7000 < 600 ? 3 : 0;
-    const mx = Math.round(b.x + side), my = Math.round((h.pose === 'sit' ? h.seat - 4 : b.y - 9) - lift);
-    R(c, mx - 1, my - 1, 4, 5, P.out); R(c, mx, my, 2, 3, '#f2c14e'); R(c, mx, my, 2, 1, '#ffffff');
   }
 }
 
@@ -1548,7 +1548,7 @@ function drawHair(c, b, x, hy) {
 }
 function drawBot(c, b, x, y, walk, t) {
   const k = c === rctx ? 2 : 3;
-  const d = walk ? b.dir : c === rctx && b.dk ? 'left' : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && b.bt && 'up') || (c === ctx && atHang(b) && HANG[b.hang].dir) || b.dir || 'down'); // idle: the last facing
+  const d = walk ? b.dir : c === rctx && b.dk ? 'left' : c === rctx && b.ifx && b.ifx.face && b.istation === b.ifx.key && !b.leaving ? b.ifx.face : (c === rctx && (b.state === 'working' || b.ifx && b.ifx.up) && b.inside && !b.leaving ? 'up' : (c === ctx && b.bt && 'up') || (c === ctx && atHang(b) && HANG[b.hang].dir) || b.dir || 'down'); // idle: the last facing
   const dir = typeof d === 'string' ? d : 'down', anim = walk ? 'walk_' + dir : 'stand';
   const at = walk && castImg(b, 'down') ? 0 : (t + (b.phase || 0)) * (b.speed || 1); // cast steps from walkDist; the clock is only idle and non-cast
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
@@ -1848,7 +1848,15 @@ function iRocker(c, x, y) { R(c, x - 7, y, 15, 1, P.woodD); R(c, x - 6, y - 6, 1
 function iMortar(c, x, y) { ell(c, x, y, 4, 2, P.out); ell(c, x, y - 1, 3, 2, P.stone); R(c, x - 2, y - 2, 4, 1, '#6a9a4a'); R(c, x + 1, y - 7, 1, 5, P.stoneL); }
 function iJars(c, x, y, reg) { ['#6be06b', '#e5486b', '#6fd0e8', '#c08cf0'].forEach((col, i) => { const jx = x + i * 6; R(c, jx - 1, y - 8, 6, 9, P.out); R(c, jx, y - 7, 4, 7, '#cfe8f0'); R(c, jx, y - 4, 4, 4, col); R(c, jx, y - 8, 4, 1, P.woodD); R(c, jx, y - 7, 1, 2, '#ffffff'); reg.lights.push({ x: jx + 2, y: y - 3, r: 9, col: col === '#6be06b' ? '110,235,140' : col === '#e5486b' ? '255,120,150' : col === '#6fd0e8' ? '120,220,240' : '200,150,255' }); }); }
 function iPlate(c, x, y) { ell(c, x, y, 2, 1, '#f6f0e2'); R(c, x - 1, y - 1, 2, 1, '#d9883a'); }
-function iMug(c, x, y) { R(c, x - 1, y - 3, 3, 4, P.out); R(c, x, y - 2, 2, 3, '#f2c14e'); R(c, x, y - 2, 2, 1, '#ffffff'); R(c, x + 2, y - 1, 1, 2, P.out); }
+function iMug(c, x, y, empty) { R(c, x - 1, y - 3, 3, 4, P.out); R(c, x, y - 2, 2, 3, empty ? '#c9a24a' : '#f2c14e'); R(c, x, y - 2, 2, 1, empty ? '#5e381f' : '#ffffff'); R(c, x + 2, y - 1, 1, 2, P.out); }
+// side-on seat shared by the library and the pub: 7x4 seat with outline and 2 legs, lit from the top-left; `side` (-1 left, 1 right) adds the pub's 1 px back post just outside a sitter
+function iChair(c, x, y, side) {
+  R(c, x - 3, y - 3, 7, 4, P.out); R(c, x - 2, y - 2, 5, 2, P.woodL); R(c, x - 2, y + 1, 1, 2, P.woodD); R(c, x + 2, y + 1, 1, 2, P.woodD);
+  if (side) { R(c, x + 5 * side, y - 8, 1, 6, P.woodD); R(c, x + 5 * side, y - 8, 1, 1, P.wood); R(c, x + 4 * side, y - 3, 1, 1, P.out); }
+}
+// the pub's round tables and the chair beside each (two per table, left then right): seat centre (cx, ty + 3), mug place (mx, ty)
+const PUB_TABLES = [[44, 98], [98, 112], [150, 110], [206, 92], [56, 134]];
+const PUB_CHAIRS = PUB_TABLES.flatMap(([tx, ty], i) => [-1, 1].map(s => ({ cx: tx + (i === 3 && s > 0 ? 12 : 13 * s), ty, s, mx: tx + 5 * s })));
 function addGrid(st) {
   for (const y of [70, 88, 106, 124, 140]) for (let x = 28; x <= 212; x += 18) if (!st.some(s => Math.abs(s.x - x) < 14 && Math.abs(s.y - y) < 12) && Math.abs(x - 120) > 8) st.push({ x, y });
   return st;
@@ -1881,7 +1889,13 @@ function buildRoom(id) {
     [156, 162, 168, 176, 182].forEach((x, i) => { if (i === 2) { disc(c, x, 21, 5, P.out); disc(c, x, 21, 4, '#a2342c'); disc(c, x, 21, 2, '#c9a24a'); return; } R(c, x, 14, 1, 11, '#d6dade'); R(c, x + 1, 14, 1, 11, '#9aa3ad'); R(c, x - 1, 23, 4, 1, '#a8822c'); R(c, x, 24, 2, 4, P.woodL); });
     iLantern(c, 46, 22, reg);
     // coal pile and firewood
-    ell(c, 30, 58, 12, 6, '#241f1f'); for (let i = 0; i < 24; i++) R(c, 19 + Math.floor(rnd() * 22), 54 + Math.floor(rnd() * 7), 1, 1, rnd() < 0.3 ? '#6a5a50' : '#3a3232');
+    // stepped heap: floor shadow, outline with a bumpy top, ramp dark base / body / lit top-left, glints, loose lumps at the foot
+    ell(c, 30, 61, 14, 3, 'rgba(0,0,0,.25)');
+    const heap = [[51, 26, 30], [52, 24, 33], [53, 23, 35], [54, 22, 37], [55, 21, 38], [56, 20, 39], [57, 19, 40], [58, 19, 40], [59, 19, 40]];
+    R(c, 26, 50, 5, 1, '#1e1a1a'); R(c, 19, 60, 22, 1, '#1e1a1a');
+    heap.forEach(([y, a, b], i) => { R(c, a - 1, y, b - a + 3, 1, '#1e1a1a'); R(c, a, y, b - a + 1, 1, i > 6 ? '#2a2424' : '#3a3232'); R(c, a, y, Math.min(Math.max(2, 7 - i), (b - a + 1) >> 1), 1, '#5a4e48'); if (i > 2 && i < 7) R(c, b - 2, y, 2, 1, '#2a2424'); });
+    [[27, 51], [25, 52], [24, 53], [29, 53], [23, 54], [26, 55]].forEach(([x, y]) => R(c, x, y, 1, 1, '#8a7a70'));
+    [[19, 61], [23, 62], [33, 62]].forEach(([x, y]) => { R(c, x, y, 3, 3, '#1e1a1a'); R(c, x, y, 2, 2, '#3a3232'); R(c, x, y, 1, 1, '#5a4e48'); });
     R(c, 38, 47, 1, 12, P.woodL); R(c, 36, 58, 5, 3, '#5a5e68');
     for (let i = 0; i < 3; i++) for (let j = 0; j < 3 - i; j++) { const lx = 74 + j * 6 + i * 3, ly = 56 - i * 4; disc(c, lx, ly, 2, P.out); disc(c, lx, ly, 1, '#d6a86a'); }
     iGrind(c, 190, 72); iArmor(c, 216, 76);
@@ -1991,14 +2005,14 @@ function buildRoom(id) {
     iFireplace(c, 168, 6, 44, 40, reg); iAntlers(c, 190, 14);
     iLantern(c, 220, 24, reg);
     iRug(c, 190, 62, 20, 6, '#a2342c'); reg.cat = { x: 192, y: 61 };
-    const tables = [[44, 98], [98, 112], [150, 110], [206, 92], [56, 134]];
-    tables.forEach(([tx, ty], i) => { iRoundTable(c, tx, ty); iCandle(c, tx, ty - 2, reg); iMug(c, tx - 4, ty - 1); if (i % 2) iPlate(c, tx + 4, ty - 2); });
+    PUB_TABLES.forEach(([tx, ty], i) => { iRoundTable(c, tx, ty); iCandle(c, tx, ty - 2, reg); if (i % 2) iPlate(c, tx, ty + 1); });
+    PUB_CHAIRS.forEach(k => iChair(c, k.cx, k.ty + 3, k.s));
     [24, 40, 56, 72, 88].forEach(x => iStool(c, x, 72));
     // corner table (where the stage was) with 2 stools; the musician sits on the right stool
     iRoundTable(c, 194, 126); iCandle(c, 194, 124, reg); iMug(c, 190, 125); iPlate(c, 198, 124); iStool(c, 181, 136); iStool(c, 207, 136);
-    // the first in sit on the bar stools (drawn cut off at the stool top, facing the bar), the rest stand around the tables
+    // the first in sit on the bar stools (drawn cut off at the stool top, facing the bar), then the 10 table chairs (cut off at the seat, facing the table), the musician, the rest stand in front of the tables
     st = [24, 40, 56, 72, 88].map(x => ({ x, y: 77, sit: 68, up: true }));
-    st.push(...[0, 1, 2].flatMap(j => tables.map(([tx, ty]) => [{ x: tx - 13, y: ty + 5 }, { x: tx + 13, y: ty + 5 }, { x: tx, y: ty + 13 }][j])), { x: 207, y: 141, sit: 132, fx: 'music' });
+    st.push(...PUB_CHAIRS.map((k, n) => ({ x: k.cx, y: k.ty + 8, sit: k.ty, face: k.s < 0 ? 'right' : 'left', chair: n })), { x: 207, y: 141, sit: 132, fx: 'music' }, ...PUB_TABLES.map(([tx, ty]) => ({ x: tx, y: ty + 13 })));
   } else if (kind === 'library') {
     roomBase(c, { wall: '#d8c39a', pattern: 'bricks', wain: '#6b4428', trim: '#7a4b2c', beam: '#4a2e1c', cap: '#2c2222', floor: 'wood', mat: '#6b4a5c', windows: [] }, reg);
     // back wall: four shelf bays, 3 rows of spines 2-4 px wide, the odd gap or leaning book, dark top and bottom rails
@@ -2032,7 +2046,7 @@ function buildRoom(id) {
     iSconce(c, 102, 20, reg); iSconce(c, 138, 20, reg);
     // reading tables on a long rug, chairs behind and in front, a candle with a 2-tone amber pool on each; the lane from the door stays clear
     iRug(c, 120, 104, 98, 30, '#6b4a5c');
-    const chair = (x, y) => { R(c, x - 3, y - 8, 7, 6, P.out); R(c, x - 2, y - 7, 5, 4, P.wood); R(c, x - 2, y - 7, 5, 1, P.woodL); R(c, x - 3, y - 3, 7, 4, P.out); R(c, x - 2, y - 2, 5, 2, P.woodL); R(c, x - 2, y + 1, 1, 2, P.woodD); R(c, x + 2, y + 1, 1, 2, P.woodD); };
+    const chair = (x, y) => { R(c, x - 3, y - 8, 7, 6, P.out); R(c, x - 2, y - 7, 5, 4, P.wood); R(c, x - 2, y - 7, 5, 1, P.woodL); iChair(c, x, y); };
     const tables = [[30, 80, 50], [160, 80, 50], [160, 116, 46]];
     tables.forEach(([tx, ty, tw]) => {
       // back-row chairs are high-backed: a rail at a seated reader's shoulders on 2 posts, so a reader there reads as sitting
@@ -2097,8 +2111,11 @@ function stationOf(b) {
   let list = S.bots.filter(o => o.inside === id && !o.leaving), i, seats = room.stations, pre = 's';
   if (b.state === 'meeting' && room.meet) { seats = room.meet; pre = 'm'; list = list.filter(o => o.state === 'meeting'); }
   if (room.kind === 'hall') i = b.id === S.elder ? 0 : slotIndex(b, list.filter(o => o.id !== S.elder)) + 1;
-  else i = slotIndex(b, list);
-  i = Math.min(i, seats.length - 1);
+  else if (room.kind === 'pub') { // a drinker keeps their seat; a newcomer takes the first free one (stools, chairs, musician, then standing), so a leaver leaves a gap
+    const mine = seats.findIndex((s, n) => b.istation === pre + n), taken = list.filter(o => o !== b).map(o => o.istation);
+    i = mine >= 0 ? mine : seats.findIndex((s, n) => !taken.includes(pre + n));
+  } else i = slotIndex(b, list);
+  i = i < 0 ? seats.length - 1 : Math.min(i, seats.length - 1);
   return { ...seats[i], key: pre + i };
 }
 function skyFor(h) {
@@ -2184,6 +2201,10 @@ function drawRoom(now, h) {
     if (b.inBed) drawSleeper(c, b, reg.beds[bedOf(b)], now);
     else if (b.ifx && b.ifx.sit && b.istation === b.ifx.key && !b.iwalk && !b.leaving) { c.save(); c.beginPath(); c.rect(0, 0, IW, b.ifx.sit); c.clip(); drawBot(c, b, b.ix, b.iy, false, now); c.restore(); }
     else drawBot(c, b, b.ix, b.iy, b.iwalk, now);
+  });
+  if (kind === 'pub') PUB_CHAIRS.forEach((k, n) => { // a full mug at each seated drinker's place, an empty one where the drinker left
+    const full = inside.some(b => b.ifx && b.ifx.chair === n && b.istation === b.ifx.key && !b.iwalk && !b.leaving);
+    if (full || pubEmpty().includes(n)) iMug(c, k.mx, k.ty, !full);
   });
   if (kind === 'library') inside.forEach(b => {
     const x = Math.round(b.ix), y = Math.round(b.iy), cv = b.book || COVERS[b.id % 5], dir = b.iwalk ? b.dir : 'down';
@@ -2481,11 +2502,37 @@ document.getElementById('summon-form').addEventListener('submit', e => {
 // ---------- autosave ----------
 // Like a game: the town saves itself in this browser (every 10 s, and when the tab is closed, hidden or refreshed) and picks up
 // where it left off: the same bots, houses, tasks, workplaces, elder, log and clock. ?fresh starts over; ?scene never saves or loads.
-const SAVE_KEY = 'bot-town-save-v1', PARAMS = new URLSearchParams(location.search), SAVING = !PARAMS.has('scene');
+const SAVE_KEY = 'bot-town-save-v1', PARAMS = new URLSearchParams(location.search), SAVING = !PARAMS.has('scene') && !PARAMS.has('save');
+// the 8 seed bots; also the cast of the saved-town fixtures
+const SEEDS = [
+  { name: 'Atlas', role: 'Chief of Staff', ws: 0, init: { state: 'working', task: 'Drafting tomorrow’s plan' } },
+  { name: 'Bolt', role: 'Engineer', ws: 0, init: { state: 'working', task: 'Running the test suite' } },
+  { name: 'Sage', role: 'Researcher', ws: 1, init: { state: 'working', task: 'Reading three new papers' } },
+  { name: 'Wren', role: 'Researcher', ws: 1, init: { state: 'idle' } },
+  { name: 'Nova', role: 'Designer', ws: 2, init: { state: 'working', task: 'Sketching the onboarding flow' } },
+  { name: 'Ledger', role: 'Analyst', ws: 3, init: { state: 'idle' } },
+  { name: 'Quill', role: 'Writer', ws: 2, init: { state: 'idle' } },
+  { name: 'Rivet', role: 'Engineer', ws: 0, init: { state: 'idle' } },
+];
+// saved-town fixtures (?save=<name>, or the scene that names one in SCENE_SAVE): townData()-shaped, built relative to today, loaded by the real
+// restoreTown and never written to localStorage. Everyone is at work, so nobody wanders into the pub; the lab rack holds 3 bottles and the
+// pub 4 empty mugs, keyed to the brew day of the clock hour (dawn: the day before, so both have been cleared by 7:00)
+const FIXTURES = {
+  night: () => fixture(21, 0), dawn: () => fixture(7, 1),
+};
+const SCENE_SAVE = { 'saved-night': 'night', 'saved-night-pub': 'night', 'saved-dawn-pub': 'dawn' };
+function fixture(hour, daysOld) {
+  const at = new Date().setHours(hour, 0, 0, 0), day = new Date(at - 6 * 3600e3 - daysOld * 864e5).toDateString();
+  return {
+    v: 1, at: Date.now(), ws: S.ws, elder: 1, log: [], nextId: SEEDS.length + 1, simulate: false, clock: { mode: 'preview', rate: 1, sim: at },
+    rack: { [S.ws.findIndex(w => w.type === 'lab')]: { n: 3, day } }, pub: { day, empty: [0, 3, 4, 7] },
+    bots: SEEDS.map((s, i) => ({ id: i + 1, name: s.name, role: s.role, ws: s.ws, slot: i, state: 'working', task: s.init.task || tasksFor(s)[0], lastTask: '' })),
+  };
+}
 function townData() {
   const keep = b => b.state === 'meeting' ? (b.prev || { state: 'idle', task: '' }) : b.state === 'summoning' ? { state: b.init.state, task: b.init.task || '' } : b;
   return {
-    v: 1, at: Date.now(), ws: S.ws, elder: S.elder, log: S.log, nextId: S.nextId, simulate: S.simulate, rack: S.rack,
+    v: 1, at: Date.now(), ws: S.ws, elder: S.elder, log: S.log, nextId: S.nextId, simulate: S.simulate, rack: S.rack, pub: S.pub,
     clock: clk.mode === 'live' ? null : { mode: clk.mode, rate: clk.rate, sim: simNow() },
     bots: S.bots.map(b => ({ id: b.id, name: b.name, role: b.role, ws: b.ws, slot: b.slot, state: keep(b).state, task: keep(b).task || '', lastTask: b.lastTask || '' })),
   };
@@ -2504,7 +2551,7 @@ function restoreTown(d, hello = 'Welcome back! The town picked up where you left
     Object.assign(b, { id: o.id, lastTask: o.lastTask, appeared: true, state: o.state, task: o.task || '' });
   });
   S.nextId = Math.max(d.nextId || 1, ...S.bots.map(b => b.id + 1)); setElder(S.bots.some(b => b.id === d.elder) ? d.elder : S.elder);
-  S.rack = d.rack && typeof d.rack === 'object' ? d.rack : {};
+  S.rack = d.rack && typeof d.rack === 'object' ? d.rack : {}; S.pub = d.pub && Array.isArray(d.pub.empty) ? d.pub : null;
   S.log = Array.isArray(d.log) ? d.log.slice(0, 16) : []; S.simulate = d.simulate !== false; document.getElementById('simulate').checked = S.simulate;
   if (d.clock) {
     Object.assign(clk, { anchorReal: Date.now(), anchorSim: d.clock.sim, rate: d.clock.rate, mode: d.clock.mode });
@@ -2609,20 +2656,11 @@ setInterval(() => { if (MODE !== 'live' && S.live && liveDownAt && Date.now() - 
 
 loadAll().then(() => {
 document.getElementById('loading').hidden = true;
-const saved = MODE === 'live' ? null : loadSave();
+const fix = FIXTURES[PARAMS.get('save') || SCENE_SAVE[PARAMS.get('scene')]], saved = MODE === 'live' ? null : fix ? fix() : loadSave();
 if (saved) S.ws = saved.ws.slice(0, LOT_C.length).map(w => ({ name: String(w.name).slice(0, 18), type: WS_TYPES[w.type] ? w.type : 'forge' }));
 buildBg(); renderWs();
 if (MODE === 'live') { S.simulate = false; simBox.checked = false; simBox.closest('label').hidden = true; goLive([]); }
-else if (saved) restoreTown(saved); else [
-  { name: 'Atlas', role: 'Chief of Staff', ws: 0, init: { state: 'working', task: 'Drafting tomorrow’s plan' } },
-  { name: 'Bolt', role: 'Engineer', ws: 0, init: { state: 'working', task: 'Running the test suite' } },
-  { name: 'Sage', role: 'Researcher', ws: 1, init: { state: 'working', task: 'Reading three new papers' } },
-  { name: 'Wren', role: 'Researcher', ws: 1, init: { state: 'idle' } },
-  { name: 'Nova', role: 'Designer', ws: 2, init: { state: 'working', task: 'Sketching the onboarding flow' } },
-  { name: 'Ledger', role: 'Analyst', ws: 3, init: { state: 'idle' } },
-  { name: 'Quill', role: 'Writer', ws: 2, init: { state: 'idle' } },
-  { name: 'Rivet', role: 'Engineer', ws: 0, init: { state: 'idle' } },
-].forEach(summon);
+else if (saved) restoreTown(saved); else SEEDS.forEach(summon);
 // ?scene=<name>: test setups for tools/shoot.py --scene. They fix the clock and starting spots (the seeds start at their goals) and pin the sim
 // (no random tasks, no wandering) so a shot shows exactly the setup. Nothing is stored; without ?scene the page runs as usual
 // library scenes: Wren at the desk (take frame, or return frame with returns 1), Sage mid-walk carrying a closed book, Quill reading on the open frame (or the flip frame)
@@ -2677,14 +2715,21 @@ const scene = {
   // free bots at every hangout of an area (benches, pond), to see them sit and skip stones
   'park-life': { hour: 10, hang: 'park' },
   'pub-inside': { hour: 19, meeting: 'pub', look: 'pub' },
+  // 16 bots at the meeting fill 5 stools, 10 chairs and the musician; pub-leave: the drinkers on chairs 0 and 1 (Ledger, Quill) are given work and walk out, leaving empty mugs
+  'pub-full': { hour: 20, meeting: 'pub', look: 'pub', extra: ['Fern', 'Moss', 'Pip', 'Hazel', 'Rook', 'Tansy', 'Bram', 'Juniper'] },
+  'pub-leave': { hour: 20, meeting: 'pub', look: 'pub', pinWhen: () => ['Ledger', 'Quill'].every(n => !S.bots.find(b => b.name === n).inside), then: () => ['Ledger', 'Quill'].forEach(n => Object.assign(S.bots.find(b => b.name === n), { state: 'working', task: 'Balancing the books' })) },
+  // saved-town fixtures (FIXTURES / SCENE_SAVE): night 21:00 and dawn 7:00
+  'saved-night': { hour: 21 }, 'saved-night-pub': { hour: 21, look: 'pub' }, 'saved-dawn-pub': { hour: 7, look: 'pub' },
+  forge: { hour: 10, look: 'ws0', seat: true },
 }[new URLSearchParams(location.search).get('scene')];
 if (scene) {
   const d = new Date(); d.setHours(scene.hour, scene.min || 0, 0, 0); clk.anchorReal = Date.now(); clk.anchorSim = d.getTime(); clk.mode = 'preview'; S.hour = scene.hour; S.pinned = !scene.pinWhen;
+  (scene.extra || []).forEach((name, i) => summon({ name, role: ['Engineer', 'Researcher', 'Designer', 'Analyst'][i % 4], ws: i % 4, init: { state: 'idle' } }));
   S.bots.forEach(b => { b.appeared = true; finishSummon(b); });
   if (scene.standup) { ringBell(); S.bell = { text: 'Ding!', until: Infinity, frame: 1 }; buildSigns(); } // bell frozen on tilt-left
   if (scene.meeting) callMeeting(scene.meeting);
   S.bots.forEach(b => { routeTo(b, goalFor(b)); const p = b.path.pop(); b.x = p.x; b.y = p.y; b.path = []; arrive(b, Date.now()); });
-  if (scene.standup || scene.meeting) S.bots.forEach(b => { const st = stationOf(b); Object.assign(b, { ix: st.x, iy: st.y, istation: st.key, ifx: st, bubble: null }); });
+  if (scene.standup || scene.meeting || scene.seat) S.bots.forEach(b => { if (!b.inside) return; const st = stationOf(b); Object.assign(b, { ix: st.x, iy: st.y, istation: st.key, ifx: st, bubble: null }); });
   if (scene.wren) {
     const w = S.bots.find(b => b.name === 'Wren'); Object.assign(w, { inside: 'library', goalKey: 'library', anchor: 'b357', exit: [[FEATURES.library.door, 301]], doorPt: [FEATURES.library.door, 296] });
     const st = stationOf(w); Object.assign(w, { ix: st.x, iy: st.y, istation: st.key, ifx: st });
