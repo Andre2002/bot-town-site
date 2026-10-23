@@ -1,0 +1,15 @@
+{
+  "id": "lab",
+  "route": "ink",
+  "scale": 3,
+  "frame": {
+    "w": 186,
+    "h": 192
+  },
+  "anchor": {
+    "x": 0,
+    "y": 0
+  },
+  "baseline": 191,
+  "notes": "ink route from lab2_c2.png (cell 2 of lab2_grid.png): tools/art/ink2pixel.py, long edge 192, 3 art px per map px, padded to 186x192 bottom-centred, hand fixes in tools/art/rounds/2026-10-22_lab_*.py. One still frame. Drawn at map (x0, 230), 62x64 map px."
+}

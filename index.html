@@ -248,6 +248,7 @@ const tagsEl = document.getElementById('tags');
 const IMG = {};
 const IMG_SRC = { leaf_piles: 'assets/autumn/leaf_piles.png' }; // art loads from its file; villagers from the atlas below
 IMG_SRC.library = 'assets/library/library.png';
+IMG_SRC.lab = 'assets/lab/lab.png'; // Alchemy Lab front, 186x192 = 62x64 map px at 3 art px each
 IMG_SRC.desk = 'assets/library_desk/desk.png'; // library check-out desk (room art, not on the map)
 IMG_SRC.taskboard = 'assets/taskboard/closeup.png'; // Task Board close-up (view `board`)
 // animated sprites are a PNG sheet + a JSON next to it (frames, per-frame ms, anchor, baseline), packed into assets/manifest.js by tools/art/pack.py
@@ -533,7 +534,7 @@ const TASKS = {
 // ---------- state ----------
 const S = {
   bots: [], ws: [{ name: 'The Forge', type: 'forge' }, { name: 'Mage Tower', type: 'tower' }, { name: 'Artisan Workshop', type: 'workshop' }, { name: 'Alchemy Lab', type: 'lab' }],
-  elder: null, log: [], simulate: true, meeting: null, nextId: 1, queueAt: 0, releaseAt: 0, leaver: null, hour: 12, pinned: false, bell: null, pins: {}, // pins: board slot -> pin colour of a note that was taken down
+  elder: null, log: [], simulate: true, meeting: null, nextId: 1, queueAt: 0, releaseAt: 0, leaver: null, hour: 12, pinned: false, bell: null, rack: {}, puffs: [], pins: {}, // rack: lab lot -> { n bottles, brew-day key }; puffs: finished-brew puffs; pins: board slot -> pin colour of a note that was taken down
 };
 const clk = { anchorReal: Date.now(), anchorSim: Date.now(), rate: 1, mode: 'live' };
 const simNow = () => clk.anchorSim + (Date.now() - clk.anchorReal) * clk.rate;
@@ -925,15 +926,9 @@ function drawWorkplace(c, k) {
     disc(c, x0 + 31, wy + 4, 4, P.out); disc(c, x0 + 31, wy + 4, 3, '#c9b48a'); disc(c, x0 + 31, wy + 4, 1, '#6b4428');
     [[0, -4], [0, 4], [-4, 0], [4, 0]].forEach(([dx, dy]) => R(c, x0 + 31 + dx, wy + 4 + dy, 1, 1, '#c9b48a'));
   } else if (ws.type === 'lab') {
-    chimney(c, x0 + 42, top + 6, 18, 'ws' + k, 6, 'green');
-    walls(c, x0, wy, w, wh, { timber: '#7a4b2c', wall: '#eadfc8' });
-    R(c, x0, wy + 14, w, 1, '#7a4b2c');
-    roof(c, x0, top, w, 28, ROOFS.teal, { trim: '#7a4b2c', wall: '#eadfc8', reg, glow: '#9cf59c' });
-    win(c, x0 + 6, wy + 4, 9, 8, reg, '#7a4b2c', '#9cf59c'); win(c, x0 + w - 15, wy + 4, 9, 8, reg, '#7a4b2c', '#9cf59c');
-    R(c, x0 + w - 15, wy + 8, 9, 1, P.woodL);
-    [['#e5486b', 0], ['#6fd0e8', 3], ['#8bd46a', 6]].forEach(([pc, dx]) => R(c, x0 + w - 14 + dx, wy + 6, 2, 2, pc));
-    door(c, x0 + 31, wy + wh, 9, 14, '#3f8796');
-    R(c, x0 + 40, wy + 17, 5, 1, P.out); R(c, x0 + 42, wy + 18, 6, 7, P.out); R(c, x0 + 43, wy + 19, 4, 5, '#f6f0e2'); R(c, x0 + 44, wy + 20, 2, 3, '#8bd46a');
+    c.imageSmoothingEnabled = false; c.drawImage(IMG.lab, x0, 230, 62, 64); // the sprite carries walls, roof, chimney, door, sign and the empty shop shelf; the code draws the bottles (drawRack)
+    REG.chim.push({ x: x0 + 41, y: 231, owner: 'ws' + k, smoke: 'green' });
+    reg.push({ x: x0 + 43, y: 263, w: 16, h: 12, frame: '#7a4b2c' }, { x: x0 + 7, y: 264, w: 9, h: 8, frame: '#7a4b2c' }); // glow rects: shop window above its shelf, left window
     const cx = x0 + 12, cy = wy + wh - 3;
     R(c, cx - 4, cy, 1, 3, P.out); R(c, cx + 4, cy, 1, 3, P.out);
     ell(c, cx, cy - 1, 6, 4, P.out); ell(c, cx, cy - 1, 5, 3, '#3d3d48'); ell(c, cx, cy - 4, 5, 1, '#55556a'); ell(c, cx, cy - 4, 4, 1, '#6be06b');
@@ -1164,7 +1159,12 @@ function boardGoal(b) {
   const [x, y] = b.bspot === 'wait' ? BOARD.wait : BOARD.spots[b.bspot];
   return { key: 'board' + b.bspot, node: 'v219', pts: [[x, 219], [x, y]] };
 }
-function finish(b) { addLog(`${b.name} finished: ${b.task}`); say(b, 'Done!'); b.state = 'idle'; b.task = ''; b.idlePick = null; }
+// the lab's shop-window rack: one bottle per finished brew, emptied each dawn (brew day = sim date minus 6 h)
+const RACK_COLS = ['#8bd46a', '#e5486b', '#6fd0e8', '#c08cf0'];
+const brewDay = () => new Date(simNow() - 6 * 3600e3).toDateString();
+function rackOf(k) { const day = brewDay(); return S.rack[k]?.day === day ? S.rack[k] : (S.rack[k] = { n: 0, day }); }
+function finish(b) { if (S.ws[b.ws]?.type === 'lab') { const r = rackOf(b.ws); r.n = Math.min(4, r.n + 1); S.puffs.push({ k: b.ws, col: RACK_COLS[r.n - 1], t0: Date.now() }); }
+  addLog(`${b.name} finished: ${b.task}`); say(b, 'Done!'); b.state = 'idle'; b.task = ''; b.idlePick = null; }
 function wake(b) { b.state = 'idle'; b.idlePick = null; say(b, S.hour >= 5 && S.hour < 12 ? 'Good morning!' : 'I’m up.'); addLog(`${b.name} woke up`); }
 function sleep(b) { b.state = 'asleep'; b.task = ''; say(b, 'Goodnight.'); addLog(`${b.name} went quiet and headed to bed`); }
 
@@ -1574,6 +1574,18 @@ function glowWin(r, a) {
   if (r.w >= 5) R(ctx, r.x + (r.w >> 1), r.y, 1, r.h, r.frame);
   if (r.h >= 6) R(ctx, r.x, r.y + (r.h >> 1), r.w, 1, r.frame);
 }
+function drawPuffs(now) { // 3 blobs 300 ms apart, rising 13 px, drifting with the wind, fading
+  S.puffs = S.puffs.filter(p => p.p != null || now - p.t0 < 2000);
+  S.puffs.forEach(p => {
+    const cx = LOT_C[p.k] - 31 + 41;
+    for (let i = 0; i < 3; i++) {
+      const q = p.p != null ? p.p - i * 0.2 : (now - p.t0 - i * 300) / 1400; // frozen scenes set p (0-1.4 of the puff)
+      if (q < 0 || q >= 1) continue;
+      const sz = q < 0.5 ? 2 : 3, bx = cx - 1 + Math.round((1 + wind(now)) * q) + (i - 1), by = 228 - Math.round(13 * (1 - (1 - q) ** 2));
+      ctx.globalAlpha = 1 - q; R(ctx, bx, by, sz, sz, p.col); R(ctx, bx, by, 1, 1, shade(p.col, 0.3)); ctx.globalAlpha = 1;
+    }
+  });
+}
 function draw(now, h) {
   ctx.setTransform(3, 0, 0, 3, 0, 0); ctx.imageSmoothingEnabled = false;
   ctx.drawImage(bg, 0, 0);
@@ -1636,6 +1648,15 @@ function draw(now, h) {
   if (S.bots.some(b => b.inside === 'pub')) REG.pubWin.forEach(r => glowWin(r, lightA));
   if (dim && S.bots.some(b => b.inside === 'library')) REG.libWin.forEach(r => glowWin(r, lightA));
   S.ws.forEach((w, k) => { if (workingAt(k)) REG.wsWin[k].forEach(r => glowWin(r, lightA)); });
+  S.ws.forEach((w, k) => { // lab shop-window bottles, after the glow so they show against the lit pane; unlit at night they take the dark
+    if (w.type !== 'lab') return;
+    const x0 = LOT_C[k] - 31, lit = workingAt(k);
+    for (let i = 0; i < rackOf(k).n; i++) {
+      const col = lit ? RACK_COLS[i] : shade(RACK_COLS[i], -dk * 0.75), bx = x0 + 44 + i * 4;
+      R(ctx, bx + 1, 270, 1, 1, '#b68458'); R(ctx, bx, 271, 3, 4, col); R(ctx, bx + 2, 271, 1, 4, shade(col, -0.3)); R(ctx, bx, 271, 1, 1, '#f6f0e2');
+    }
+  });
+  drawPuffs(now); // after the tint, so a night brew still shows
   REG.fx.forEach(fx => {
     const on = anyWorkingAt(fx.k);
     if (fx.type === 'forge') {
@@ -2464,7 +2485,7 @@ const SAVE_KEY = 'bot-town-save-v1', PARAMS = new URLSearchParams(location.searc
 function townData() {
   const keep = b => b.state === 'meeting' ? (b.prev || { state: 'idle', task: '' }) : b.state === 'summoning' ? { state: b.init.state, task: b.init.task || '' } : b;
   return {
-    v: 1, at: Date.now(), ws: S.ws, elder: S.elder, log: S.log, nextId: S.nextId, simulate: S.simulate,
+    v: 1, at: Date.now(), ws: S.ws, elder: S.elder, log: S.log, nextId: S.nextId, simulate: S.simulate, rack: S.rack,
     clock: clk.mode === 'live' ? null : { mode: clk.mode, rate: clk.rate, sim: simNow() },
     bots: S.bots.map(b => ({ id: b.id, name: b.name, role: b.role, ws: b.ws, slot: b.slot, state: keep(b).state, task: keep(b).task || '', lastTask: b.lastTask || '' })),
   };
@@ -2483,6 +2504,7 @@ function restoreTown(d, hello = 'Welcome back! The town picked up where you left
     Object.assign(b, { id: o.id, lastTask: o.lastTask, appeared: true, state: o.state, task: o.task || '' });
   });
   S.nextId = Math.max(d.nextId || 1, ...S.bots.map(b => b.id + 1)); setElder(S.bots.some(b => b.id === d.elder) ? d.elder : S.elder);
+  S.rack = d.rack && typeof d.rack === 'object' ? d.rack : {};
   S.log = Array.isArray(d.log) ? d.log.slice(0, 16) : []; S.simulate = d.simulate !== false; document.getElementById('simulate').checked = S.simulate;
   if (d.clock) {
     Object.assign(clk, { anchorReal: Date.now(), anchorSim: d.clock.sim, rate: d.clock.rate, mode: d.clock.mode });
@@ -2625,7 +2647,19 @@ const boardScene = carry => () => {
   routeTo(nova, boardGoal(nova)); const q = nova.path.pop(); Object.assign(nova, { x: q.x, y: q.y, path: [] }); arrive(nova, Date.now());
   if (carry) Object.assign(nova, { x: 371, y: 218, arrived: false, bt: null, hold: Date.now() + 1e12 });
 };
+// lab scenes: Ledger working at the lab, the rack holding n bottles (day 'old' = yesterday's key), a puff frozen at p of its rise in blue
+const labScene = (n, old, p) => () => {
+  const k = S.ws.findIndex(w => w.type === 'lab'), ledger = S.bots.find(b => b.name === 'Ledger');
+  S.rack[k] = { n: 0, day: old ? 'yesterday' : brewDay() }; S.puffs = [];
+  if (!old) for (let i = 0; i < n; i++) Object.assign(ledger, { ws: k, state: 'working', task: 'Balancing the books' }), finish(ledger); // the real path: each finished brew racks a bottle and starts a puff
+  else S.rack[k].n = n;
+  S.puffs = p ? S.puffs.slice(-1).map(q => ({ ...q, p })) : []; // keep only the last puff, frozen
+  Object.assign(ledger, { state: 'working', task: 'Balancing the books', inside: null, goalKey: null }); routeTo(ledger, goalFor(ledger)); const q = ledger.path.pop(); Object.assign(ledger, { x: q.x, y: q.y, path: [] }); arrive(ledger, Date.now());
+};
 const scene = {
+  'lab-brews': { hour: 16, then: labScene(3, false, 0.5) },
+  'lab-dawn': { hour: 7, then: labScene(4, true) },
+  'lab-night': { hour: 22, then: labScene(4, false) },
   'board-take': { hour: 10, then: boardScene(false) },
   'board-carry': { hour: 10, then: boardScene(true) },
   'board-look': { hour: 10, look: 'board', then: boardScene(false) },
@@ -2727,6 +2761,7 @@ window.__townLayout = () => ({
   lots: LOT_C.map((c, k) => ({ lot: k, x: c - 30, y: 246, w: 60, h: 46,
     holds: S.ws[k] ? S.ws[k].name : null })),
   features: [...Object.entries(FEATURES).map(([id, f]) => ({ id, ...f })), ...LEAF_PILES,
+    ...S.ws.flatMap((w, k) => w.type === 'lab' ? [{ id: 'lab_ws' + k, x: LOT_C[k] - 31, y: 230, w: 62, h: 64 }, { id: 'lab_puff_ws' + k, x: LOT_C[k] + 3, y: 216, w: 14, h: 14 }] : []),
     { id: 'hill_ring', x: SLATE.x - HILL.ring.rx - 2, y: SLATE.y - HILL.ring.ry - 7, w: 2 * HILL.ring.rx + 5, h: 2 * HILL.ring.ry + 10 },
     { id: 'hill_sign', x: HILL.sign[0] - 20, y: HILL.sign[1] - 5, w: 40, h: 10 },
     { id: 'hill_wall', x: HILL.wall[0], y: HILL.wall[1], w: HILL.wall[2], h: HILL.wall[3] },
