@@ -1329,7 +1329,7 @@ function update(b, dt, now) {
     else if (b.goal && b.goal.area && now > b.wanderAt && !S.pinned) wander(b, now);
   }
   b.walking = false;
-  let budget = 10.6 * paceBehind(b) * dt;
+  let budget = 10.6 * paceBehind(b, dt) * dt;
   if (b.path.length || b.gaitOn) stepGait(b, budget, false, now);
   if (b.arrived && !b.path.length && b.bspot != null && b.bspot !== 'wait' && b.goalKey === 'board' + b.bspot) { // at its spot: face up 0.6 s, reach 0.4 s (the note comes off at the reach), then off with the note in hand
     const bt = b.bt || (b.bt = { ph: 'face', t: now });
@@ -1340,7 +1340,15 @@ function update(b, dt, now) {
 // walkers have their own pace, but nobody pushes through someone ahead on the same way: close behind a walker, match its pace, and
 // if two met at a corner too close (a name would sit on the body ahead or behind), drop back until there's a tag's height between them.
 // Head-on walkers just pass
-function paceBehind(b) {
+// The pace eases to that target (b.pace, frame-rate independent): slowing behind someone takes PACE_TAU_SLOW, recovering PACE_TAU_RECOVER
+// longer, so a walker closing on another never brakes or lurches in one tick. Distance still drives the frames, so there is no foot slide
+const PACE_TAU_SLOW = 0.15, PACE_TAU_RECOVER = 0.5;
+function paceBehind(b, dt) {
+  const target = paceTarget(b);
+  if (!b.path[0] || b.pace == null || !dt) return b.pace = target;
+  return b.pace += (target - b.pace) * (1 - Math.exp(-dt / (target < b.pace ? PACE_TAU_SLOW : PACE_TAU_RECOVER)));
+}
+function paceTarget(b) {
   const p = b.path[0]; if (!p) return b.speed;
   const dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
   let pace = b.speed;
