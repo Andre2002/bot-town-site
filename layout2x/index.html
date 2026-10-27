@@ -42,7 +42,9 @@ function placeholder(a, fill) {
 function blocked(fx, fy) {
   const l = fx - SP.w / 2, r = fx + SP.w / 2, t = fy - SP.h;
   if (l < 0 || r > W || t < 0 || fy > H) return true;
-  return B.some(b => l < b.x + b.w && r > b.x && t < b.y + b.h - SP.h && fy > b.y);
+  if (B.some(b => l < b.x + b.w && r > b.x && t < b.y + b.h - SP.h && fy > b.y)) return true;
+  // props block only their base rect, against the figure's foot box (IN.foot, 48x24, feet at bottom-centre)
+  return PROPS.some(p => { const k = p.base, ft = fy - IN.foot.h; return l < k.x + k.w && r > k.x && ft < k.y + k.h && fy > k.y; });
 }
 function door(b) { return { x: b.x + b.door.x + b.door.w / 2, y: Math.max(b.y + b.door.y + b.door.h, b.y + b.h) + 4 }; }
 function bfs(s, e) {
@@ -116,37 +118,50 @@ function draw(spr) {
   g.fillStyle = '#5c8f3e'; g.fillRect(0, 0, W, H);
   window.__overlay = {};
   paths();
-  let pending = B.length;
+  const ents = [];  // everything standing on the ground, sorted by base line below
   for (const b of B) {
-    if (b.kind === 'lot') {
-      const a = AM[b.id], im = artOf(a);
-      window.__slotState[b.id] = im ? 'art' : 'placeholder';
-      if (im) drawNative(im, b.x, b.y, b.w, b.h);
-      else if (MAP && T.districts.some(d => d.id === b.id)) { g.setLineDash([20, 12]); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); g.setLineDash([]); }  // map: the district label already names it
-      else placeholder(a);
-      if (b.slot && DEBUG) { g.setLineDash([14, 10]); g.strokeStyle = '#00e5ff'; g.lineWidth = 3; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); g.setLineDash([]); }
-      continue;
-    }
-    const im = artOf(AM[b.id]); window.__slotState[b.id] = im ? 'art' : 'placeholder';
+    if (b.kind !== 'lot') { ents.push({ id: b.id, rank: 0, y: b.y + b.h, draw: () => drawBuilding(b) }); continue; }
+    const a = AM[b.id], im = artOf(a);  // lots are ground: drawn under everything
+    window.__slotState[b.id] = im ? 'art' : 'placeholder';
     if (im) drawNative(im, b.x, b.y, b.w, b.h);
-    else placeholder(AM[b.id], '#8a7a9a');
-    if (im && !DEBUG) continue;  // real art: no label, outline or door box on top
-    window.__overlay[b.id] = true;
-    g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
-    { const s = `${b.label || b.id} ${b.w}x${b.h}`; g.font = '14px monospace'; g.textBaseline = 'top';
-      g.fillStyle = '#000'; g.fillRect(b.x + 6, b.y + 6, Math.min(b.w - 12, g.measureText(s).width + 8), 20); g.fillStyle = '#fff'; g.fillText(s, b.x + 10, b.y + 9); }
-    const dx = b.x + b.door.x, dy = b.y + b.door.y;   // outer door frame
-    g.strokeStyle = '#000'; g.lineWidth = 6; g.strokeRect(dx, dy, b.door.w, b.door.h);
-    g.strokeStyle = '#ff2bd6'; g.lineWidth = 2; g.strokeRect(dx, dy, b.door.w, b.door.h);
-    const cx = dx + b.door.w / 2, by = dy + b.door.h;  // threshold tick
-    g.fillStyle = '#ff2bd6'; g.fillRect(cx - 14, by, 28, 2); g.fillRect(cx - 1, by, 2, 8);
+    else if (MAP && T.districts.some(d => d.id === b.id)) { g.setLineDash([20, 12]); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); g.setLineDash([]); }  // map: the district label already names it
+    else placeholder(a);
+    if (b.slot && DEBUG) { g.setLineDash([14, 10]); g.strokeStyle = '#00e5ff'; g.lineWidth = 3; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); g.setLineDash([]); }
   }
-  for (const a of PROPS) {
-    const im = artOf(a); window.__slotState[a.id] = im ? 'art' : 'placeholder';
-    if (im) drawNative(im, a.footprint.x, a.footprint.y, a.footprint.w, a.footprint.h); else placeholder(a);
-  }
+  for (const a of PROPS) ents.push({ id: a.id, rank: 1, y: a.sortY, draw: () => drawProp(a) });
+  if (spr && !window.__inRoom) ents.push({ id: 'figure', rank: 2, y: spr.y, draw: () => drawSprite(spr) });
+  // Y-depth: the lower the base line (bigger y), the later it is drawn. Ties: building, then prop, then the figure in front.
+  ents.sort((p, q) => p.y - q.y || p.rank - q.rank);
+  window.__drawOrder = ents.map(e => e.id);
+  for (const e of ents) e.draw();
   if (MAP) mapOverlay();
-  if (spr && !window.__inRoom) drawSprite(spr);
+}
+function drawBuilding(b) {
+  const im = artOf(AM[b.id]); window.__slotState[b.id] = im ? 'art' : 'placeholder';
+  if (im) drawNative(im, b.x, b.y, b.w, b.h);
+  else placeholder(AM[b.id], '#8a7a9a');
+  if (im && !DEBUG) return;  // real art: no label, outline or door box on top
+  window.__overlay[b.id] = true;
+  g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
+  { const s = `${b.label || b.id} ${b.w}x${b.h}`; g.font = '14px monospace'; g.textBaseline = 'top';
+    g.fillStyle = '#000'; g.fillRect(b.x + 6, b.y + 6, Math.min(b.w - 12, g.measureText(s).width + 8), 20); g.fillStyle = '#fff'; g.fillText(s, b.x + 10, b.y + 9); }
+  const dx = b.x + b.door.x, dy = b.y + b.door.y;   // outer door frame
+  g.strokeStyle = '#000'; g.lineWidth = 6; g.strokeRect(dx, dy, b.door.w, b.door.h);
+  g.strokeStyle = '#ff2bd6'; g.lineWidth = 2; g.strokeRect(dx, dy, b.door.w, b.door.h);
+  const cx = dx + b.door.w / 2, by = dy + b.door.h;  // threshold tick
+  g.fillStyle = '#ff2bd6'; g.fillRect(cx - 14, by, 28, 2); g.fillRect(cx - 1, by, 2, 8);
+}
+function drawProp(a) {
+  const f = a.footprint, k = a.base, im = artOf(a); window.__slotState[a.id] = im ? 'art' : 'placeholder';
+  if (im) drawNative(im, f.x, f.y, f.w, f.h);
+  else {  // labelled box; the darker band is the collision base
+    window.__overlay[a.id] = true;
+    g.fillStyle = '#7d8a9a'; g.fillRect(f.x, f.y, f.w, f.h); g.fillStyle = '#566170'; g.fillRect(k.x, k.y, k.w, k.h);
+    g.setLineDash([10, 6]); g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(f.x + 1.5, f.y + 1.5, f.w - 3, f.h - 3); g.setLineDash([]);
+    const s = a.label || a.id, sz = f.w < 60 ? 12 : 18; g.font = `bold ${sz}px sans-serif`;
+    label(s, f.x + Math.max(2, (f.w - g.measureText(s).width) / 2), f.y + Math.max(4, (f.h - k.h) / 2 - sz / 2), sz);
+  }
+  if (DEBUG) { window.__overlay[a.id] = true; g.strokeStyle = '#0f0'; g.lineWidth = 2; g.strokeRect(k.x + 1, k.y + 1, k.w - 2, k.h - 2); g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(f.x + .5, f.y + .5, f.w - 1, f.h - 1); }
 }
 function drawSprite(spr) {
   g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(spr.x, spr.y, 24, 6, 0, 0, 7); g.fill();
@@ -157,7 +172,7 @@ function drawSprite(spr) {
 
 // ---- ?play=1: walk around the town (arrows/WASD), walk up into a door to enter its interior, walk out of the room's exit to return.
 // Town collision is blocked() above; interior collision is the sprite's foot box (IN.foot) against wall + furniture rects.
-// window.__game is the test hook: scene ('town' or a room id), pos {x,y} (feet), step(dx,dy,frames), teleport(x,y), enter(id), exit().
+// window.__drawOrder = ids in draw order (buildings, props, 'figure') sorted by base line. window.__game is the test hook: scene ('town' or a room id), pos {x,y} (feet), step(dx,dy,frames), teleport(x,y), enter(id), exit().
 const IN = window.TOWN_INTERIORS, ROOMS = {}; for (const r of IN.rooms) ROOMS[r.id] = r;
 const FOOT = IN.foot, SPEED = IN.speed;
 const ovl = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -254,7 +269,7 @@ function step(dx, dy, frames = 1) {  // dx, dy in -1..0..1; one call per frame; 
 function initGame() {
   GAME.pos = { ...spr }; render();
   window.__game = {
-    get scene() { return GAME.scene; }, get pos() { return { ...GAME.pos }; }, get rooms() { return ROOMS; },
+    get scene() { return GAME.scene; }, get pos() { return { ...GAME.pos }; }, get cam() { return { ...CAM }; }, get rooms() { return ROOMS; },
     enter, exit: leave, step,
     teleport(x, y) { GAME.pos = { x, y }; render(); },
     doorPoint: id => { const b = target(id); return b && doorPt(b); },
