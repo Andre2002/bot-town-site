@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Town 2x layout (placeholder)</title>
+<style>html,body{margin:0;background:#222}canvas{display:block;image-rendering:pixelated}</style>
+<canvas id="c"></canvas>
+<script src="buildings.js"></script>
+<script>
+const T = window.TOWN2X, W = T.canvas.w, H = T.canvas.h, SP = T.SPRITE, B = T.buildings;
+const q = new URLSearchParams(location.search);
+const scale = parseFloat(q.get('scale') || '1');
+const cv = document.getElementById('c'); cv.width = W; cv.height = H;
+cv.style.width = W * scale + 'px'; cv.style.height = H * scale + 'px';
+const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+const CELL = 8;
+
+// Sprite stands in front of a building once its feet are at or below the building's base line, so the
+// blocked area of a building is its footprint minus the bottom SPRITE.h (same rule as tools/checks/layout2x.py).
+function blocked(fx, fy) {
+  const l = fx - SP.w / 2, r = fx + SP.w / 2, t = fy - SP.h;
+  if (l < 0 || r > W || t < 0 || fy > H) return true;
+  return B.some(b => l < b.x + b.w && r > b.x && t < b.y + b.h - SP.h && fy > b.y);
+}
+function door(b) { return { x: b.x + b.door.x + b.door.w / 2, y: b.y + b.door.y + b.door.h + 4 }; }
+function bfs(s, e) {
+  const cw = Math.ceil(W / CELL), ch = Math.ceil(H / CELL), key = (i, j) => j * cw + i;
+  const si = Math.round(s.x / CELL), sj = Math.round(s.y / CELL), ei = Math.round(e.x / CELL), ej = Math.round(e.y / CELL);
+  const prev = new Map([[key(si, sj), -1]]), qu = [[si, sj]];
+  for (let k = 0; k < qu.length; k++) {
+    const [i, j] = qu[k];
+    if (i === ei && j === ej) break;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const a = i + di, b2 = j + dj, kk = key(a, b2);
+      if (a < 0 || b2 < 0 || a >= cw || b2 >= ch || prev.has(kk) || blocked(a * CELL, b2 * CELL)) continue;
+      prev.set(kk, key(i, j)); qu.push([a, b2]);
+    }
+  }
+  if (!prev.has(key(ei, ej))) return [];
+  const path = []; for (let k = key(ei, ej); k !== -1; k = prev.get(k)) path.push({ x: (k % cw) * CELL, y: Math.floor(k / cw) * CELL });
+  return path.reverse();
+}
+
+// walkable path bands (visual): lane centres through the gaps, door stubs down to a lane
+const P = 96, bands = [
+  [96, 1850 - P / 2, 2304, P],            // bottom lane
+  [96, 1344 - P / 2, 2208, P],            // middle lane (below pub, above cottages)
+  [627 - 8 - P / 2 + 8, 96, P, 1850 - 96],// left vertical (tower|hall, oak|ivy)
+  [1638 - P / 2, 96, P, 1344 - 96],       // right vertical (hall|library)
+  [627, 764 - P / 2, 1638 - 627 + P / 2, P], // upper lane under the hall
+  [1638, 663 - P / 2, 2304 - 1638, P],    // under the library
+];
+for (const b of B) { const d = door(b); bands.push([d.x - P / 2, d.y - 4, P, (b.y + b.h > 1400 ? 1850 : b.y + b.h > 1000 ? 1344 : b.y + b.h < 700 && b.x > 1500 ? 663 : b.id === 'hall' ? 764 : 1344) - d.y + 4]); }
+
+function draw(spr) {
+  g.fillStyle = '#5c8f3e'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#c9b98a'; for (const r of bands) g.fillRect(r[0], r[1], r[2], r[3]);
+  let pending = B.length;
+  for (const b of B) {
+    if (b.img && b.im && b.im.complete) g.drawImage(b.im, b.x, b.y);
+    else { g.fillStyle = b.img ? '#a55' : '#8a7a9a'; g.fillRect(b.x, b.y, b.w, b.h); g.strokeStyle = '#2a2233'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); }
+    g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
+    g.fillStyle = '#000'; g.fillRect(b.x + 6, b.y + 6, 190, 20);
+    g.fillStyle = '#fff'; g.font = '14px monospace'; g.textBaseline = 'top'; g.fillText(`${b.id} ${b.w}x${b.h}`, b.x + 10, b.y + 9);
+    const dx = b.x + b.door.x, dy = b.y + b.door.y;   // outer door frame
+    g.strokeStyle = '#000'; g.lineWidth = 6; g.strokeRect(dx, dy, b.door.w, b.door.h);
+    g.strokeStyle = '#ff2bd6'; g.lineWidth = 2; g.strokeRect(dx, dy, b.door.w, b.door.h);
+    const cx = dx + b.door.w / 2, by = dy + b.door.h;  // threshold tick
+    g.fillStyle = '#ff2bd6'; g.fillRect(cx - 14, by, 28, 2); g.fillRect(cx - 1, by, 2, 8);
+  }
+  if (spr) {
+    g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(spr.x, spr.y, 24, 6, 0, 0, 7); g.fill();
+    g.fillStyle = '#e2572b'; g.strokeStyle = '#111'; g.lineWidth = 2;
+    g.beginPath(); g.roundRect(spr.x - 24, spr.y - SP.h, SP.w, SP.h, 24); g.fill(); g.stroke();
+    g.fillStyle = '#fff'; g.fillRect(spr.x - 10, spr.y - SP.h + 22, 6, 6); g.fillRect(spr.x + 4, spr.y - SP.h + 22, 6, 6);
+  }
+}
+const target = id => B.find(b => b.id === id);
+let spr = null, left = B.length;
+function ready() { window.layoutReady = true; }
+function start() {
+  const at = q.get('at'), walk = q.get('walk');
+  if (at && target(at)) spr = door(target(at));
+  else if (walk && target(walk)) {
+    const path = bfs(T.spawn, door(target(walk))); let i = 0; spr = { ...T.spawn };
+    window.walkPath = path;
+    (function step() { if (i < path.length) { spr = path[i]; i += 2; draw(spr); requestAnimationFrame(step); } })();
+  }
+  draw(spr); ready();
+}
+for (const b of B) {
+  if (!b.img) { if (--left === 0) start(); continue; }
+  b.im = new Image(); b.im.onload = b.im.onerror = () => { if (--left === 0) start(); }; b.im.src = '../' + b.img;
+}
+if (!B.length) start();
+</script>
