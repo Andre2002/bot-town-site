@@ -51,7 +51,7 @@ function paths() {
   g.fillStyle = '#c9b98a';
   for (const r of [...T.streets, ...T.spokes]) g.fillRect(r.x, r.y, r.w, r.h);
   const PK = B.find(b => b.id === 'park');
-  if (PK) { g.fillStyle = '#4f8a35'; g.fillRect(PK.x, PK.y, PK.w, PK.h); g.fillStyle = '#2f6a25'; for (let i = 0; i < 14; i++) { g.beginPath(); g.arc(PK.x + 60 + (i % 5) * 125, PK.y + 80 + Math.floor(i / 5) * 190, 34, 0, 7); g.fill(); } }
+  if (PK) { g.fillStyle = '#4f8a35'; g.fillRect(PK.x, PK.y, PK.w, PK.h); g.fillStyle = '#2f6a25'; for (let y = PK.y + 80; y <= PK.y + PK.h - 60; y += 160) for (let x = PK.x + 60; x <= PK.x + PK.w - 60; x += 125) { g.beginPath(); g.arc(x, y, 34, 0, 7); g.fill(); } }
   for (const r of T.reserve || []) { g.setLineDash([24, 16]); g.strokeStyle = '#ffe9a8'; g.lineWidth = 4; g.strokeRect(r.x + 2, r.y + 2, r.w - 4, r.h - 4); g.setLineDash([]); label(r.label, r.x + 20, r.y + r.h / 2 - 16, 28, '#ffe9a8'); }
   g.fillStyle = '#d9cfa8'; g.fillRect(SQ.x, SQ.y, SQ.w, SQ.h);
   g.strokeStyle = '#8a7a50'; g.lineWidth = 4; g.strokeRect(SQ.x, SQ.y, SQ.w, SQ.h);
@@ -90,7 +90,8 @@ function draw(spr) {
   for (const b of B) {
     if (b.kind === 'lot') {
       g.setLineDash([20, 12]); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); g.setLineDash([]);
-      if (!(MAP && T.districts.some(d => d.id === b.id))) label(b.label, b.x + 24, b.y + b.h / 2 - 16, 32);  // map: the district label already names it
+      if (!(MAP && T.districts.some(d => d.id === b.id))) { g.font = 'bold 32px sans-serif'; const fit = g.measureText(b.label).width <= b.w - 48;  // map: the district label already names it
+        if (fit) label(b.label, b.x + 24, b.y + b.h / 2 - 16, 32); else b.label.split(' (').forEach((s, i) => label(i ? '(' + s : s, b.x + 12, b.y + 24 + i * 30, 22)); }  // small lot: wrap at the bracket
       if (b.slot) { g.setLineDash([14, 10]); g.strokeStyle = '#00e5ff'; g.lineWidth = 3; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); g.setLineDash([]); }
       continue;
     }
