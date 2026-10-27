@@ -4,6 +4,9 @@
 <style>html,body{margin:0;background:#222}canvas{display:block;image-rendering:pixelated}</style>
 <canvas id="c"></canvas>
 <script src="buildings.js"></script>
+<script>/* art is never scaled: drawn at native size, bottom-centre on the slot anchor */
+function drawNative(im, x, y, w, h) { g.drawImage(im, Math.round(x + w / 2 - im.naturalWidth / 2), y + h - im.naturalHeight); }</script>
+<script src="assets.js"></script>
 <script>
 const T = window.TOWN2X, W = T.canvas.w, H = T.canvas.h, SP = T.SPRITE, B = T.buildings;
 const q = new URLSearchParams(location.search);
@@ -14,6 +17,22 @@ const cv = document.getElementById('c'); cv.width = CVW; cv.height = CVH;
 cv.style.width = CVW * scale + 'px'; cv.style.height = CVH * scale + 'px';
 const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
 const CELL = 8;
+
+// Art slots: assets.json (as assets.js) lists every building/lot/prop with the png to draw at its footprint.
+// A png that loads is drawn; a missing one gets a labelled placeholder. window.__slotState[id] = 'art' | 'placeholder'.
+const AM = {}, PROPS = [];
+for (const a of window.TOWN_ASSETS.assets) { AM[a.id] = a; if (a.kind === 'prop') PROPS.push(a); }
+window.__slotState = {};
+const artOf = a => (a && a.im && a.im.complete && a.im.naturalWidth > 0) ? a.im : null;
+function placeholder(a, fill) {
+  const f = a.footprint; window.__overlay[a.id] = true;
+  if (fill) { g.fillStyle = fill; g.fillRect(f.x, f.y, f.w, f.h); }
+  g.setLineDash([20, 12]); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(f.x + 2, f.y + 2, f.w - 4, f.h - 4); g.setLineDash([]);
+  const s = a.label || a.id; g.font = 'bold 32px sans-serif';
+  if (g.measureText(s).width <= f.w - 48) label(s, f.x + 24, f.y + f.h / 2 - 28, 32);
+  else s.split(' (').forEach((t, i) => label(i ? '(' + t : t, f.x + 12, f.y + 24 + i * 30, 22));
+  label('art pending', f.x + 24, f.y + f.h / 2 + 12, f.w > 300 ? 28 : 20, '#ffd');
+}
 
 // Sprite stands in front of a building once its feet are at or below the building's base line, so the
 // blocked area of a building is its footprint minus the bottom SPRITE.h (same rule as tools/checks/layout2x.py).
@@ -42,6 +61,7 @@ function bfs(s, e) {
 }
 
 const MAP = q.get('map') === '1', SQ = T.square;
+const DEBUG = q.get('debug') === '1' || MAP;  // outlines, size labels and door boxes only in debug (?debug=1, and the ?map=1 layout diagram)
 const TINT = { residential: '#d98fb0', civic: '#e8c75a', working: '#6fa8dc', pub: '#e08a3c', park: '#7fd06a', library: '#b48ae0' };
 function label(t, x, y, size, col) {
   g.font = `bold ${size}px sans-serif`; g.textBaseline = 'top'; g.lineWidth = size / 5; g.strokeStyle = '#000'; g.strokeText(t, x, y);
@@ -91,18 +111,24 @@ function mapOverlay() {
 function draw(spr) {
   g.setTransform(1, 0, 0, 1, VIEW ? -V.x : 0, VIEW ? -V.y : 0);
   g.fillStyle = '#5c8f3e'; g.fillRect(0, 0, W, H);
+  window.__overlay = {};
   paths();
   let pending = B.length;
   for (const b of B) {
     if (b.kind === 'lot') {
-      g.setLineDash([20, 12]); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); g.setLineDash([]);
-      if (!(MAP && T.districts.some(d => d.id === b.id))) { g.font = 'bold 32px sans-serif'; const fit = g.measureText(b.label).width <= b.w - 48;  // map: the district label already names it
-        if (fit) label(b.label, b.x + 24, b.y + b.h / 2 - 16, 32); else b.label.split(' (').forEach((s, i) => label(i ? '(' + s : s, b.x + 12, b.y + 24 + i * 30, 22)); }  // small lot: wrap at the bracket
-      if (b.slot) { g.setLineDash([14, 10]); g.strokeStyle = '#00e5ff'; g.lineWidth = 3; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); g.setLineDash([]); }
+      const a = AM[b.id], im = artOf(a);
+      window.__slotState[b.id] = im ? 'art' : 'placeholder';
+      if (im) drawNative(im, b.x, b.y, b.w, b.h);
+      else if (MAP && T.districts.some(d => d.id === b.id)) { g.setLineDash([20, 12]); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); g.setLineDash([]); }  // map: the district label already names it
+      else placeholder(a);
+      if (b.slot && DEBUG) { g.setLineDash([14, 10]); g.strokeStyle = '#00e5ff'; g.lineWidth = 3; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); g.setLineDash([]); }
       continue;
     }
-    if (b.img && b.im && b.im.complete) g.drawImage(b.im, b.x, b.y);
-    else { g.fillStyle = b.img ? '#a55' : '#8a7a9a'; g.fillRect(b.x, b.y, b.w, b.h); g.strokeStyle = '#2a2233'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); }
+    const im = artOf(AM[b.id]); window.__slotState[b.id] = im ? 'art' : 'placeholder';
+    if (im) drawNative(im, b.x, b.y, b.w, b.h);
+    else placeholder(AM[b.id], '#8a7a9a');
+    if (im && !DEBUG) continue;  // real art: no label, outline or door box on top
+    window.__overlay[b.id] = true;
     g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
     { const s = `${b.label || b.id} ${b.w}x${b.h}`; g.font = '14px monospace'; g.textBaseline = 'top';
       g.fillStyle = '#000'; g.fillRect(b.x + 6, b.y + 6, Math.min(b.w - 12, g.measureText(s).width + 8), 20); g.fillStyle = '#fff'; g.fillText(s, b.x + 10, b.y + 9); }
@@ -111,6 +137,10 @@ function draw(spr) {
     g.strokeStyle = '#ff2bd6'; g.lineWidth = 2; g.strokeRect(dx, dy, b.door.w, b.door.h);
     const cx = dx + b.door.w / 2, by = dy + b.door.h;  // threshold tick
     g.fillStyle = '#ff2bd6'; g.fillRect(cx - 14, by, 28, 2); g.fillRect(cx - 1, by, 2, 8);
+  }
+  for (const a of PROPS) {
+    const im = artOf(a); window.__slotState[a.id] = im ? 'art' : 'placeholder';
+    if (im) drawNative(im, a.footprint.x, a.footprint.y, a.footprint.w, a.footprint.h); else placeholder(a);
   }
   if (MAP) mapOverlay();
   if (spr) {
@@ -121,7 +151,7 @@ function draw(spr) {
   }
 }
 const target = id => B.find(b => b.id === id && b.door);
-let spr = { ...T.spawn }, left = B.length;
+let spr = { ...T.spawn }, left = window.TOWN_ASSETS.assets.length;
 function ready() { window.layoutReady = true; }
 function start() {
   const at = q.get('at'), walk = q.get('walk');
@@ -133,9 +163,8 @@ function start() {
   }
   draw(spr); ready();
 }
-for (const b of B) {
-  if (!b.img || b.kind === 'lot') { if (--left === 0) start(); continue; }
-  b.im = new Image(); b.im.onload = b.im.onerror = () => { if (--left === 0) start(); }; b.im.src = '../' + b.img;
+for (const a of window.TOWN_ASSETS.assets) {
+  a.im = new Image(); a.im.onload = a.im.onerror = () => { if (--left === 0) start(); }; a.im.src = '../' + a.png;
 }
-if (!B.length) start();
+if (!left) start();
 </script>

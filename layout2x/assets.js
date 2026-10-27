@@ -1,0 +1,293 @@
+// GENERATED from assets.json by tools/checks/assets2x.py --write; edit assets.json, not this file.
+window.TOWN_ASSETS = /*JSON*/
+{
+ "_note": "Art slots for the 2x layout. Drop a PNG at `png` (path relative to town/) and the page draws it at `footprint`; no code change. door = bottom-centre of the door rect (absolute); anchor = bottom-centre of footprint. After editing run: python3 tools/checks/assets2x.py --write (regenerates assets.js).",
+ "assets": [
+  {
+   "id": "oak",
+   "label": "Oak",
+   "kind": "building",
+   "png": "assets/town2x/oak_r16l.png",
+   "footprint": {
+    "x": 64,
+    "y": 113,
+    "w": 429,
+    "h": 346
+   },
+   "door": {
+    "x": 279,
+    "y": 459
+   },
+   "anchor": {
+    "x": 278,
+    "y": 459
+   }
+  },
+  {
+   "id": "ivy",
+   "label": "Ivy",
+   "kind": "building",
+   "png": "assets/town2x/ivy_r16e.png",
+   "footprint": {
+    "x": 589,
+    "y": 112,
+    "w": 429,
+    "h": 347
+   },
+   "door": {
+    "x": 804,
+    "y": 459
+   },
+   "anchor": {
+    "x": 803,
+    "y": 459
+   }
+  },
+  {
+   "id": "birch",
+   "label": "Birch",
+   "kind": "building",
+   "png": "assets/town2x/birch_r16d.png",
+   "footprint": {
+    "x": 64,
+    "y": 555,
+    "w": 429,
+    "h": 347
+   },
+   "door": {
+    "x": 279,
+    "y": 902
+   },
+   "anchor": {
+    "x": 278,
+    "y": 902
+   }
+  },
+  {
+   "id": "fern",
+   "label": "Fern",
+   "kind": "building",
+   "png": "assets/town2x/fern_r16f.png",
+   "footprint": {
+    "x": 589,
+    "y": 555,
+    "w": 429,
+    "h": 347
+   },
+   "door": {
+    "x": 804,
+    "y": 902
+   },
+   "anchor": {
+    "x": 803,
+    "y": 902
+   }
+  },
+  {
+   "id": "park",
+   "label": "Park",
+   "kind": "lot",
+   "png": "assets/town2x/slots/park.png",
+   "footprint": {
+    "x": 64,
+    "y": 1030,
+    "w": 954,
+    "h": 480
+   },
+   "door": null,
+   "anchor": {
+    "x": 541,
+    "y": 1510
+   }
+  },
+  {
+   "id": "hall",
+   "label": "Hall",
+   "kind": "building",
+   "png": "assets/town2x/hall_r16d.png",
+   "footprint": {
+    "x": 1159,
+    "y": 96,
+    "w": 883,
+    "h": 588
+   },
+   "door": {
+    "x": 1601,
+    "y": 684
+   },
+   "anchor": {
+    "x": 1600,
+    "y": 684
+   }
+  },
+  {
+   "id": "tbd",
+   "label": "TBD (open lot)",
+   "kind": "lot",
+   "png": "assets/town2x/slots/tbd.png",
+   "footprint": {
+    "x": 2138,
+    "y": 160,
+    "w": 480,
+    "h": 420
+   },
+   "door": null,
+   "anchor": {
+    "x": 2378,
+    "y": 580
+   }
+  },
+  {
+   "id": "pub",
+   "label": "Pub",
+   "kind": "building",
+   "png": "assets/town2x/pub_r17e.png",
+   "footprint": {
+    "x": 2236,
+    "y": 782,
+    "w": 560,
+    "h": 390
+   },
+   "door": {
+    "x": 2516,
+    "y": 1132
+   },
+   "anchor": {
+    "x": 2516,
+    "y": 1172
+   }
+  },
+  {
+   "id": "teleport",
+   "label": "Teleport base (placeholder)",
+   "kind": "lot",
+   "png": "assets/town2x/slots/teleport.png",
+   "footprint": {
+    "x": 2972,
+    "y": 909,
+    "w": 148,
+    "h": 198
+   },
+   "door": null,
+   "anchor": {
+    "x": 3046,
+    "y": 1107
+   }
+  },
+  {
+   "id": "library",
+   "label": "Library",
+   "kind": "building",
+   "png": "assets/town2x/library_r17e.png",
+   "footprint": {
+    "x": 1696,
+    "y": 1372,
+    "w": 473,
+    "h": 355
+   },
+   "door": {
+    "x": 1932,
+    "y": 1692
+   },
+   "anchor": {
+    "x": 1932,
+    "y": 1727
+   }
+  },
+  {
+   "id": "mage_shop",
+   "label": "Mage shop (redraw pending)",
+   "kind": "building",
+   "png": "assets/town2x/slots/mage_shop.png",
+   "footprint": {
+    "x": 64,
+    "y": 1760,
+    "w": 467,
+    "h": 480
+   },
+   "door": {
+    "x": 298,
+    "y": 2240
+   },
+   "anchor": {
+    "x": 297,
+    "y": 2240
+   }
+  },
+  {
+   "id": "lab",
+   "label": "Lab",
+   "kind": "building",
+   "png": "assets/town2x/lab_r16b.png",
+   "footprint": {
+    "x": 627,
+    "y": 1908,
+    "w": 434,
+    "h": 332
+   },
+   "door": {
+    "x": 844,
+    "y": 2240
+   },
+   "anchor": {
+    "x": 844,
+    "y": 2240
+   }
+  },
+  {
+   "id": "workshop",
+   "label": "Workshop (no art yet)",
+   "kind": "building",
+   "png": "assets/town2x/slots/workshop.png",
+   "footprint": {
+    "x": 1728,
+    "y": 1880,
+    "w": 480,
+    "h": 360
+   },
+   "door": {
+    "x": 1968,
+    "y": 2240
+   },
+   "anchor": {
+    "x": 1968,
+    "y": 2240
+   }
+  },
+  {
+   "id": "spare_w1",
+   "label": "Spare lot (working)",
+   "kind": "lot",
+   "png": "assets/town2x/slots/spare_w1.png",
+   "footprint": {
+    "x": 2304,
+    "y": 1880,
+    "w": 480,
+    "h": 360
+   },
+   "door": null,
+   "anchor": {
+    "x": 2544,
+    "y": 2240
+   }
+  },
+  {
+   "id": "board_spot",
+   "label": "Town board",
+   "kind": "prop",
+   "png": "assets/town2x/slots/board_spot.png",
+   "footprint": {
+    "x": 2076,
+    "y": 980,
+    "w": 120,
+    "h": 140
+   },
+   "door": null,
+   "anchor": {
+    "x": 2136,
+    "y": 1120
+   }
+  }
+ ]
+}
+/*END*/;
