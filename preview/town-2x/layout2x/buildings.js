@@ -5,17 +5,17 @@ window.TOWN2X = /*JSON*/
 {
  "canvas": {
   "w": 3200,
-  "h": 2720
+  "h": 2368
  },
  "SPRITE": {
   "h": 98,
   "w": 48
  },
- "PATH_MIN": 128,
+ "PATH_MIN": 96,
  "APRON": 160,
  "spawn": {
   "x": 1600,
-  "y": 1092
+  "y": 1060
  },
  "districts": [
   {
@@ -23,16 +23,16 @@ window.TOWN2X = /*JSON*/
    "label": "Residential",
    "x": 0,
    "y": 0,
-   "w": 1146,
-   "h": 1553
+   "w": 1114,
+   "h": 998
   },
   {
    "id": "civic",
    "label": "Civic: hall + square",
-   "x": 1146,
+   "x": 1114,
    "y": 0,
-   "w": 960,
-   "h": 1404
+   "w": 990,
+   "h": 1372
   },
   {
    "id": "tbd",
@@ -53,39 +53,39 @@ window.TOWN2X = /*JSON*/
   {
    "id": "teleport",
    "label": "Teleport",
-   "x": 2860,
-   "y": 900,
-   "w": 340,
-   "h": 360
+   "x": 2892,
+   "y": 780,
+   "w": 308,
+   "h": 456
   },
   {
    "id": "library",
    "label": "Library",
    "x": 1664,
-   "y": 1404,
-   "w": 660,
-   "h": 580
+   "y": 1372,
+   "w": 600,
+   "h": 368
   },
   {
    "id": "park",
    "label": "Park",
    "x": 0,
-   "y": 1569,
-   "w": 1146,
-   "h": 440
+   "y": 1014,
+   "w": 1114,
+   "h": 512
   },
   {
    "id": "working",
    "label": "Works quarter",
    "x": 0,
-   "y": 2049,
+   "y": 1740,
    "w": 3200,
-   "h": 671
+   "h": 628
   }
  ],
  "square": {
   "x": 1136,
-  "y": 812,
+  "y": 780,
   "w": 928,
   "h": 560
  },
@@ -95,49 +95,42 @@ window.TOWN2X = /*JSON*/
    "x": 1018,
    "y": 684,
    "w": 2182,
-   "h": 128
+   "h": 96
   },
   {
    "id": "oak_lane",
    "x": 0,
    "y": 459,
    "w": 1018,
-   "h": 128
+   "h": 96
   },
   {
    "id": "ivy_lane",
    "x": 0,
-   "y": 934,
+   "y": 902,
    "w": 1018,
-   "h": 128
-  },
-  {
-   "id": "reserve_lane",
-   "x": 0,
-   "y": 1425,
-   "w": 1018,
-   "h": 128
+   "h": 96
   },
   {
    "id": "pub_yard",
    "x": 2064,
-   "y": 1268,
-   "w": 860,
-   "h": 128
+   "y": 1236,
+   "w": 1136,
+   "h": 96
   },
   {
    "id": "library_walk",
-   "x": 1664,
-   "y": 1759,
-   "w": 624,
-   "h": 128
+   "x": 1632,
+   "y": 1727,
+   "w": 537,
+   "h": 96
   },
   {
    "id": "works_road",
    "x": 0,
-   "y": 2561,
+   "y": 2240,
    "w": 3200,
-   "h": 128
+   "h": 96
   }
  ],
  "spokes": [
@@ -145,22 +138,22 @@ window.TOWN2X = /*JSON*/
    "id": "res_lane",
    "x": 1018,
    "y": 459,
-   "w": 128,
-   "h": 1094
+   "w": 96,
+   "h": 539
   },
   {
    "id": "main_street",
    "x": 1536,
-   "y": 1372,
-   "w": 128,
-   "h": 1189
+   "y": 1340,
+   "w": 96,
+   "h": 900
   },
   {
    "id": "teleport_path",
    "x": 2796,
-   "y": 812,
-   "w": 128,
-   "h": 584
+   "y": 780,
+   "w": 96,
+   "h": 456
   }
  ],
  "buildings": [
@@ -221,7 +214,7 @@ window.TOWN2X = /*JSON*/
    "w": 429,
    "h": 347,
    "x": 64,
-   "y": 587,
+   "y": 555,
    "door": {
     "x": 185,
     "y": 237,
@@ -245,7 +238,7 @@ window.TOWN2X = /*JSON*/
    "w": 429,
    "h": 347,
    "x": 589,
-   "y": 587,
+   "y": 555,
    "door": {
     "x": 185,
     "y": 237,
@@ -267,9 +260,9 @@ window.TOWN2X = /*JSON*/
    "status": "park",
    "img": null,
    "w": 954,
-   "h": 400,
+   "h": 480,
    "x": 64,
-   "y": 1585,
+   "y": 1030,
    "district": "park"
   },
   {
@@ -311,7 +304,7 @@ window.TOWN2X = /*JSON*/
    "w": 560,
    "h": 390,
    "x": 2236,
-   "y": 878,
+   "y": 782,
    "door": {
     "x": 250,
     "y": 240,
@@ -331,8 +324,8 @@ window.TOWN2X = /*JSON*/
    "img": null,
    "w": 148,
    "h": 198,
-   "x": 2924,
-   "y": 974,
+   "x": 2972,
+   "y": 909,
    "status": "lot",
    "ref": "live town/index.html Summon Hill (hill_* features via __townLayout): 1x footprint x406-480, y117-216 = 74x99 (wall + plateau 74x82 at y134-216, pine tops to y117); 2x lot = 148x198. 1x crop: /workspace/proof/town-2x/refs/teleport_1x.png"
   },
@@ -345,7 +338,7 @@ window.TOWN2X = /*JSON*/
    "w": 473,
    "h": 355,
    "x": 1696,
-   "y": 1404,
+   "y": 1372,
    "door": {
     "x": 206,
     "y": 210,
@@ -366,7 +359,7 @@ window.TOWN2X = /*JSON*/
    "w": 467,
    "h": 480,
    "x": 64,
-   "y": 2081,
+   "y": 1760,
    "door": {
     "x": 204,
     "y": 370,
@@ -385,7 +378,7 @@ window.TOWN2X = /*JSON*/
    "w": 434,
    "h": 332,
    "x": 627,
-   "y": 2229,
+   "y": 1908,
    "door": {
     "x": 187,
     "y": 222,
@@ -402,8 +395,8 @@ window.TOWN2X = /*JSON*/
    "img": null,
    "w": 480,
    "h": 360,
-   "x": 1760,
-   "y": 2201,
+   "x": 1728,
+   "y": 1880,
    "door": {
     "x": 210,
     "y": 250,
@@ -420,8 +413,8 @@ window.TOWN2X = /*JSON*/
    "img": null,
    "w": 480,
    "h": 360,
-   "x": 2336,
-   "y": 2201,
+   "x": 2304,
+   "y": 1880,
    "status": "lot"
   }
  ],
@@ -433,15 +426,36 @@ window.TOWN2X = /*JSON*/
   "zoom": 0.6,
   "assumption": "1920x1080 screen, camera zoom 0.6 -> 3200x1800 world px (the full canvas width)"
  },
- "reserve": [
+ "PATH_MAX": 128,
+ "plaza": {
+  "id": "teleport_plaza",
+  "label": "Teleport plaza",
+  "x": 2892,
+  "y": 780,
+  "w": 308,
+  "h": 456,
+  "note": "ground area filling the block bounded by High Street (top), Teleport Path (left), Pub Yard (bottom) and the canvas edge; the Summon Hill base sits inside"
+ },
+ "patios": [
   {
-   "id": "future_houses",
-   "label": "Room for 2 more houses",
-   "district": "residential",
-   "x": 64,
-   "y": 1078,
-   "w": 954,
-   "h": 347
+   "id": "pub_patio",
+   "label": "Pub patio",
+   "x": 2416,
+   "y": 1172,
+   "w": 200,
+   "h": 64,
+   "for": "pub",
+   "note": "walkable patio between the pub door and Pub Yard"
+  },
+  {
+   "id": "board_spot",
+   "label": "Town board spot",
+   "x": 2076,
+   "y": 980,
+   "w": 120,
+   "h": 140,
+   "for": "square",
+   "note": "reserved walkable spot for the task board, just east of the square"
   }
  ]
 }
