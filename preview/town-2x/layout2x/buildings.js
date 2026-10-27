@@ -5,7 +5,7 @@ window.TOWN2X = /*JSON*/
 {
  "canvas": {
   "w": 4224,
-  "h": 2720
+  "h": 2368
  },
  "SPRITE": {
   "h": 98,
@@ -52,11 +52,11 @@ window.TOWN2X = /*JSON*/
   },
   {
    "id": "teleport",
-   "label": "Teleport base (placeholder)",
-   "x": 3456,
-   "y": 780,
-   "w": 768,
-   "h": 720
+   "label": "Teleport",
+   "x": 3940,
+   "y": 900,
+   "w": 284,
+   "h": 360
   },
   {
    "id": "library",
@@ -80,7 +80,7 @@ window.TOWN2X = /*JSON*/
    "x": 0,
    "y": 1660,
    "w": 4224,
-   "h": 1060
+   "h": 708
   }
  ],
  "square": {
@@ -128,8 +128,15 @@ window.TOWN2X = /*JSON*/
   {
    "id": "works_road",
    "x": 0,
-   "y": 2539,
+   "y": 2182,
    "w": 4224,
+   "h": 128
+  },
+  {
+   "id": "east_walk",
+   "x": 3248,
+   "y": 1268,
+   "w": 976,
    "h": 128
   }
  ],
@@ -146,14 +153,14 @@ window.TOWN2X = /*JSON*/
    "x": 2048,
    "y": 1372,
    "w": 128,
-   "h": 1167
+   "h": 810
   },
   {
    "id": "west_lane",
    "x": 1216,
    "y": 1062,
    "w": 128,
-   "h": 1477
+   "h": 1120
   }
  ],
  "buildings": [
@@ -322,12 +329,12 @@ window.TOWN2X = /*JSON*/
    "kind": "lot",
    "district": "teleport",
    "img": null,
-   "w": 640,
-   "h": 640,
-   "x": 3520,
-   "y": 812,
+   "w": 148,
+   "h": 198,
+   "x": 4012,
+   "y": 974,
    "status": "lot",
-   "ref": "original town/index.html Summon Hill: plateau x412-480 of 480 (right edge), y134-216 of 320, just right of the pub (x320-404)"
+   "ref": "live town/index.html Summon Hill (hill_* features via __townLayout): 1x footprint x406-480, y117-216 = 74x99 (wall + plateau 74x82 at y134-216, pine tops to y117); 2x lot = 148x198. 1x crop: /workspace/proof/town-2x/refs/teleport_1x.png"
   },
   {
    "id": "library",
@@ -351,22 +358,23 @@ window.TOWN2X = /*JSON*/
    "status": "stand-in-r17e"
   },
   {
-   "id": "tower",
-   "label": "Tower",
+   "id": "mage_shop",
+   "label": "Mage shop (redraw pending)",
    "kind": "building",
    "district": "working",
-   "img": "assets/town2x/tower_r16c.png",
+   "img": null,
    "w": 467,
-   "h": 837,
+   "h": 480,
    "x": 640,
    "y": 1702,
    "door": {
     "x": 204,
-    "y": 727,
+    "y": 370,
     "w": 60,
     "h": 110
    },
-   "status": "locked"
+   "status": "placeholder",
+   "note": "replaces tower_r16c (467x837) in the layout; the r16c art stays in town/assets/town2x/ untouched until Frame redraws a shorter mage shop"
   },
   {
    "id": "lab",
@@ -377,7 +385,7 @@ window.TOWN2X = /*JSON*/
    "w": 434,
    "h": 332,
    "x": 1440,
-   "y": 2207,
+   "y": 1850,
    "door": {
     "x": 187,
     "y": 222,
@@ -394,8 +402,8 @@ window.TOWN2X = /*JSON*/
    "img": null,
    "w": 480,
    "h": 360,
-   "x": 2272,
-   "y": 2179,
+   "x": 2848,
+   "y": 1822,
    "door": {
     "x": 210,
     "y": 250,
@@ -412,8 +420,8 @@ window.TOWN2X = /*JSON*/
    "img": null,
    "w": 480,
    "h": 360,
-   "x": 2848,
-   "y": 2179,
+   "x": 3424,
+   "y": 1822,
    "status": "lot"
   }
  ],

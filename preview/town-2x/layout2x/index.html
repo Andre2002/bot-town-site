@@ -97,8 +97,8 @@ function draw(spr) {
     if (b.img && b.im && b.im.complete) g.drawImage(b.im, b.x, b.y);
     else { g.fillStyle = b.img ? '#a55' : '#8a7a9a'; g.fillRect(b.x, b.y, b.w, b.h); g.strokeStyle = '#2a2233'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); }
     g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
-    g.fillStyle = '#000'; g.fillRect(b.x + 6, b.y + 6, 190, 20);
-    g.fillStyle = '#fff'; g.font = '14px monospace'; g.textBaseline = 'top'; g.fillText(`${b.label || b.id} ${b.w}x${b.h}`, b.x + 10, b.y + 9);
+    { const s = `${b.label || b.id} ${b.w}x${b.h}`; g.font = '14px monospace'; g.textBaseline = 'top';
+      g.fillStyle = '#000'; g.fillRect(b.x + 6, b.y + 6, Math.min(b.w - 12, g.measureText(s).width + 8), 20); g.fillStyle = '#fff'; g.fillText(s, b.x + 10, b.y + 9); }
     const dx = b.x + b.door.x, dy = b.y + b.door.y;   // outer door frame
     g.strokeStyle = '#000'; g.lineWidth = 6; g.strokeRect(dx, dy, b.door.w, b.door.h);
     g.strokeStyle = '#ff2bd6'; g.lineWidth = 2; g.strokeRect(dx, dy, b.door.w, b.door.h);
