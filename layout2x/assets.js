@@ -275,20 +275,20 @@ window.TOWN_ASSETS = /*JSON*/
    "id": "board_spot",
    "label": "Town board",
    "kind": "prop",
-   "png": "assets/town2x/slots/board_spot.png",
+   "png": "assets/town2x/props/board.png",
    "footprint": {
-    "x": 2076,
-    "y": 980,
-    "w": 120,
-    "h": 140
+    "x": 2066,
+    "y": 930,
+    "w": 145,
+    "h": 190
    },
    "door": null,
    "anchor": {
-    "x": 2136,
+    "x": 2138,
     "y": 1120
    },
    "base": {
-    "x": 2096,
+    "x": 2098,
     "y": 1096,
     "w": 80,
     "h": 24
@@ -299,108 +299,108 @@ window.TOWN_ASSETS = /*JSON*/
    "id": "lamp_sq_nw",
    "label": "Lamp",
    "kind": "prop",
-   "png": "assets/town2x/props/lamp_sq_nw.png",
+   "png": "assets/town2x/props/lamp.png",
    "footprint": {
-    "x": 1160,
-    "y": 690,
-    "w": 48,
-    "h": 140
+    "x": 1168,
+    "y": 781,
+    "w": 32,
+    "h": 180
    },
    "base": {
     "x": 1172,
-    "y": 814,
+    "y": 945,
     "w": 24,
     "h": 16
    },
    "door": null,
    "anchor": {
     "x": 1184,
-    "y": 830
+    "y": 961
    },
-   "sortY": 830
+   "sortY": 961
   },
   {
    "id": "lamp_sq_ne",
    "label": "Lamp",
    "kind": "prop",
-   "png": "assets/town2x/props/lamp_sq_ne.png",
+   "png": "assets/town2x/props/lamp.png",
    "footprint": {
-    "x": 1992,
-    "y": 690,
-    "w": 48,
-    "h": 140
+    "x": 2000,
+    "y": 781,
+    "w": 32,
+    "h": 180
    },
    "base": {
     "x": 2004,
-    "y": 814,
+    "y": 945,
     "w": 24,
     "h": 16
    },
    "door": null,
    "anchor": {
     "x": 2016,
-    "y": 830
+    "y": 961
    },
-   "sortY": 830
+   "sortY": 961
   },
   {
    "id": "lamp_high_e",
    "label": "Lamp",
    "kind": "prop",
-   "png": "assets/town2x/props/lamp_high_e.png",
+   "png": "assets/town2x/props/lamp.png",
    "footprint": {
-    "x": 2700,
-    "y": 544,
-    "w": 48,
-    "h": 140
+    "x": 2708,
+    "y": 503,
+    "w": 32,
+    "h": 180
    },
    "base": {
     "x": 2712,
-    "y": 668,
+    "y": 667,
     "w": 24,
     "h": 16
    },
    "door": null,
    "anchor": {
     "x": 2724,
-    "y": 684
+    "y": 683
    },
-   "sortY": 684
+   "sortY": 683
   },
   {
    "id": "lamp_yard_w",
    "label": "Lamp",
    "kind": "prop",
-   "png": "assets/town2x/props/lamp_yard_w.png",
+   "png": "assets/town2x/props/lamp.png",
    "footprint": {
-    "x": 2260,
-    "y": 1192,
-    "w": 48,
-    "h": 140
+    "x": 2026,
+    "y": 1056,
+    "w": 32,
+    "h": 180
    },
    "base": {
-    "x": 2272,
-    "y": 1316,
+    "x": 2030,
+    "y": 1220,
     "w": 24,
     "h": 16
    },
    "door": null,
    "anchor": {
-    "x": 2284,
-    "y": 1332
+    "x": 2042,
+    "y": 1236
    },
-   "sortY": 1332
+   "sortY": 1236
   },
   {
    "id": "bench_square",
    "label": "Bench",
    "kind": "prop",
-   "png": "assets/town2x/props/bench_square.png",
+   "png": "assets/town2x/props/bench.png",
    "footprint": {
-    "x": 1820,
-    "y": 1230,
-    "w": 112,
-    "h": 56
+    "x": 1821,
+    "y": 1206,
+    "w": 110,
+    "h": 80
    },
    "base": {
     "x": 1824,

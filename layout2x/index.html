@@ -82,7 +82,8 @@ function paths() {
   if (PZ) { g.fillStyle = '#b9b4a6'; g.fillRect(PZ.x, PZ.y, PZ.w, PZ.h); g.strokeStyle = '#6f6a5c'; g.lineWidth = 4; g.strokeRect(PZ.x + 2, PZ.y + 2, PZ.w - 4, PZ.h - 4);
     g.fillStyle = '#a7a294'; for (let y = PZ.y + 24; y < PZ.y + PZ.h - 8; y += 48) for (let x = PZ.x + 24 + (((y - PZ.y) / 48) % 2) * 24; x < PZ.x + PZ.w - 8; x += 48) g.fillRect(x, y, 20, 20); }
   g.fillStyle = '#d9cfa8'; g.fillRect(SQ.x, SQ.y, SQ.w, SQ.h);
-  for (const r of T.patios || []) { g.fillStyle = '#cdb48a'; g.fillRect(r.x, r.y, r.w, r.h); g.setLineDash([10, 6]); g.strokeStyle = '#7a5a2e'; g.lineWidth = 3; g.strokeRect(r.x + 1.5, r.y + 1.5, r.w - 3, r.h - 3); g.setLineDash([]); }
+  for (const r of T.patios || []) { if (AM[r.id] && artOf(AM[r.id])) continue;  // real art covers the spot: no placeholder fill/outline
+    g.fillStyle = '#cdb48a'; g.fillRect(r.x, r.y, r.w, r.h); g.setLineDash([10, 6]); g.strokeStyle = '#7a5a2e'; g.lineWidth = 3; g.strokeRect(r.x + 1.5, r.y + 1.5, r.w - 3, r.h - 3); g.setLineDash([]); }
   g.strokeStyle = '#8a7a50'; g.lineWidth = 4; g.strokeRect(SQ.x, SQ.y, SQ.w, SQ.h);
 }
 // district label: shrink to fit the district, and drop it to the bottom edge when the top one would cover a building
@@ -99,7 +100,7 @@ function mapOverlay() {
   g.globalAlpha = 1; g.setLineDash([]); g.lineWidth = 6;
   for (const d of T.districts) { g.strokeStyle = TINT[d.id] || '#fff'; g.strokeRect(d.x + 3, d.y + 3, d.w - 6, d.h - 6); distLabel(d); }
   label('Town square', SQ.x + 240, SQ.y + 60, 80);
-  for (const r of T.patios || []) label(r.label, r.x + 4, r.y + 4, 18, '#fff');
+  for (const r of T.patios || []) if (!(AM[r.id] && artOf(AM[r.id]))) label(r.label, r.x + 4, r.y + 4, 18, '#fff');
   if (T.plaza) label('plaza ' + T.plaza.w + 'x' + T.plaza.h, T.plaza.x + 16, T.plaza.y + T.plaza.h - 44, 28, '#fff');
   g.setLineDash([40, 20]); g.lineWidth = 14; g.strokeStyle = '#000'; g.strokeRect(V.x + 8, V.y + 8, V.w - 16, V.h - 16);
   g.lineWidth = 8; g.strokeStyle = '#ff3030'; g.strokeRect(V.x + 8, V.y + 8, V.w - 16, V.h - 16); g.setLineDash([]);

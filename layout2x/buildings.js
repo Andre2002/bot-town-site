@@ -449,10 +449,10 @@ window.TOWN2X = /*JSON*/
   {
    "id": "board_spot",
    "label": "Town board spot",
-   "x": 2076,
-   "y": 980,
-   "w": 120,
-   "h": 140,
+   "x": 2066,
+   "y": 930,
+   "w": 145,
+   "h": 190,
    "for": "square",
    "note": "reserved walkable spot for the task board, just east of the square"
   }
