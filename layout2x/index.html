@@ -7,12 +7,15 @@
 <script>/* art is never scaled: drawn at native size, bottom-centre on the slot anchor */
 function drawNative(im, x, y, w, h) { g.drawImage(im, Math.round(x + w / 2 - im.naturalWidth / 2), y + h - im.naturalHeight); }</script>
 <script src="assets.js"></script>
+<script src="interiors.js"></script>
 <script>
 const T = window.TOWN2X, W = T.canvas.w, H = T.canvas.h, SP = T.SPRITE, B = T.buildings;
 const q = new URLSearchParams(location.search);
 const scale = parseFloat(q.get('scale') || '1');
 const V = T.viewport, VIEW = q.get('view') === '1';  // ?view=1: open at the initial viewport
-const CVW = VIEW ? V.w : W, CVH = VIEW ? V.h : H;
+const PLAY = q.get('play') === '1';  // ?play=1: walk the sprite around (arrows/WASD) and into building doors
+const CVW = VIEW || PLAY ? V.w : W, CVH = VIEW || PLAY ? V.h : H;
+const CAM = { x: VIEW ? V.x : 0, y: VIEW ? V.y : 0 };  // top-left of the visible world area
 const cv = document.getElementById('c'); cv.width = CVW; cv.height = CVH;
 cv.style.width = CVW * scale + 'px'; cv.style.height = CVH * scale + 'px';
 const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
@@ -64,7 +67,7 @@ const MAP = q.get('map') === '1', SQ = T.square;
 const DEBUG = q.get('debug') === '1' || MAP;  // outlines, size labels and door boxes only in debug (?debug=1, and the ?map=1 layout diagram)
 const TINT = { residential: '#d98fb0', civic: '#e8c75a', working: '#6fa8dc', pub: '#e08a3c', park: '#7fd06a', library: '#b48ae0' };
 function label(t, x, y, size, col) {
-  g.font = `bold ${size}px sans-serif`; g.textBaseline = 'top'; g.lineWidth = size / 5; g.strokeStyle = '#000'; g.strokeText(t, x, y);
+  g.font = `bold ${size}px sans-serif`; g.textBaseline = 'top'; g.lineWidth = size / 5; g.strokeStyle = '#000'; g.lineJoin = 'round'; g.miterLimit = 2; g.strokeText(t, x, y);
   g.fillStyle = col || '#fff'; g.fillText(t, x, y);
 }
 function paths() {
@@ -109,7 +112,7 @@ function mapOverlay() {
 }
 
 function draw(spr) {
-  g.setTransform(1, 0, 0, 1, VIEW ? -V.x : 0, VIEW ? -V.y : 0);
+  g.setTransform(1, 0, 0, 1, -CAM.x, -CAM.y);
   g.fillStyle = '#5c8f3e'; g.fillRect(0, 0, W, H);
   window.__overlay = {};
   paths();
@@ -143,12 +146,129 @@ function draw(spr) {
     if (im) drawNative(im, a.footprint.x, a.footprint.y, a.footprint.w, a.footprint.h); else placeholder(a);
   }
   if (MAP) mapOverlay();
-  if (spr) {
-    g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(spr.x, spr.y, 24, 6, 0, 0, 7); g.fill();
-    g.fillStyle = '#e2572b'; g.strokeStyle = '#111'; g.lineWidth = 2;
-    g.beginPath(); g.roundRect(spr.x - 24, spr.y - SP.h, SP.w, SP.h, 24); g.fill(); g.stroke();
-    g.fillStyle = '#fff'; g.fillRect(spr.x - 10, spr.y - SP.h + 22, 6, 6); g.fillRect(spr.x + 4, spr.y - SP.h + 22, 6, 6);
+  if (spr && !window.__inRoom) drawSprite(spr);
+}
+function drawSprite(spr) {
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(spr.x, spr.y, 24, 6, 0, 0, 7); g.fill();
+  g.fillStyle = '#e2572b'; g.strokeStyle = '#111'; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(spr.x - 24, spr.y - SP.h, SP.w, SP.h, 24); g.fill(); g.stroke();
+  g.fillStyle = '#fff'; g.fillRect(spr.x - 10, spr.y - SP.h + 22, 6, 6); g.fillRect(spr.x + 4, spr.y - SP.h + 22, 6, 6);
+}
+
+// ---- ?play=1: walk around the town (arrows/WASD), walk up into a door to enter its interior, walk out of the room's exit to return.
+// Town collision is blocked() above; interior collision is the sprite's foot box (IN.foot) against wall + furniture rects.
+// window.__game is the test hook: scene ('town' or a room id), pos {x,y} (feet), step(dx,dy,frames), teleport(x,y), enter(id), exit().
+const IN = window.TOWN_INTERIORS, ROOMS = {}; for (const r of IN.rooms) ROOMS[r.id] = r;
+const FOOT = IN.foot, SPEED = IN.speed;
+const ovl = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+function roomSolids(r) {
+  const w = r.w, h = r.h, ws = r.walls, ex = r.exit;
+  return [{ x: 0, y: 0, w, h: ws.back }, { x: 0, y: 0, w: ws.side, h }, { x: w - ws.side, y: 0, w: ws.side, h },
+    { x: 0, y: h - ws.bottom, w: ex.x, h: ws.bottom }, { x: ex.x + ex.w, y: h - ws.bottom, w: w - ex.x - ex.w, h: ws.bottom }, ...r.furniture];
+}
+const roomOk = (r, x, y) => { const f = { x: x - FOOT.w / 2, y: y - FOOT.h, w: FOOT.w, h: FOOT.h }; return !roomSolids(r).some(s => ovl(f, s)); };
+function slide(pos, dx, dy, ok) {  // pixel-exact: x then y, stopping at the first blocked pixel so the sprite ends flush against what it hit
+  for (const [ax, d] of [['x', dx], ['y', dy]]) {
+    for (let n = Math.abs(d), s = Math.sign(d); n-- > 0;) {
+      const nx = pos.x + (ax === 'x' ? s : 0), ny = pos.y + (ax === 'y' ? s : 0);
+      if (!ok(nx, ny)) break; pos.x = nx; pos.y = ny;
+    }
   }
+}
+const GAME = { scene: 'town', pos: { x: 0, y: 0 }, keys: {} };
+window.__roomState = {};
+const imgs = {};  // png path -> Image, created on first use
+function art(png) { if (!imgs[png]) { imgs[png] = new Image(); imgs[png].onload = () => render(); imgs[png].src = '../' + png; } return artOf({ im: imgs[png] }); }
+function camFor(pos, w, h) {  // keep the sprite in view; a small world sits centred
+  const c = (p, v, wd) => wd <= v ? -(v - wd) / 2 : Math.max(0, Math.min(wd - v, p - v / 2));
+  return { x: c(pos.x, CVW, w), y: c(pos.y, CVH, h) };
+}
+function drawRoom(r) {
+  const cam = camFor(GAME.pos, r.w, r.h); CAM.x = cam.x; CAM.y = cam.y;
+  g.setTransform(1, 0, 0, 1, -CAM.x, -CAM.y); g.fillStyle = '#14101a'; g.fillRect(CAM.x, CAM.y, CVW, CVH);
+  const ws = r.walls, ex = r.exit, fl = { x: ws.side, y: ws.back, w: r.w - 2 * ws.side, h: r.h - ws.back - ws.bottom };
+  const fa = art(r.floor_png), wa = art(r.walls_png);
+  if (fa) g.drawImage(fa, fl.x, fl.y);
+  else { g.fillStyle = '#b89b72'; g.fillRect(fl.x, fl.y, fl.w, fl.h); g.fillStyle = '#ab8e66'; for (let y = fl.y; y < fl.y + fl.h; y += 48) for (let x = fl.x + ((y - fl.y) / 48 % 2) * 48; x < fl.x + fl.w; x += 96) g.fillRect(x, y, Math.min(48, fl.x + fl.w - x), Math.min(48, fl.y + fl.h - y)); }
+  const items = r.furniture.map(f => ({ f, im: art(f.png) }));
+  const draw1 = ({ f, im }) => {
+    window.__roomState[r.id + '/' + f.id] = im ? 'art' : 'placeholder';
+    if (im) { drawNative(im, f.x, f.y, f.w, f.h); if (DEBUG) { g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(f.x + .5, f.y + .5, f.w - 1, f.h - 1); } return; }
+    g.fillStyle = '#8a7a9a'; g.fillRect(f.x, f.y, f.w, f.h);
+    g.setLineDash([10, 6]); g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(f.x + 1.5, f.y + 1.5, f.w - 3, f.h - 3); g.setLineDash([]);
+    const sz = f.w >= 120 ? 22 : 15; g.font = `bold ${sz}px sans-serif`;
+    if (g.measureText(f.label).width <= f.w - 8) label(f.label, f.x + 6, f.y + f.h / 2 - sz / 2, sz); else label(f.label.split(' ').pop(), f.x + 4, f.y + f.h / 2 - sz / 2, sz);
+  };
+  const sorted = items.sort((a, b) => (a.f.y + a.f.h) - (b.f.y + b.f.h));
+  for (const it of sorted) if (it.f.y + it.f.h <= GAME.pos.y) draw1(it);
+  drawSprite(GAME.pos);
+  for (const it of sorted) if (it.f.y + it.f.h > GAME.pos.y) draw1(it);
+  if (wa) g.drawImage(wa, 0, 0);
+  else {
+    g.fillStyle = '#6b523c'; g.fillRect(0, 0, r.w, ws.back); g.fillStyle = '#7d6148'; g.fillRect(ws.side, 0, r.w - 2 * ws.side, ws.back - 10);
+    g.fillStyle = '#5a4636'; g.fillRect(0, 0, ws.side, r.h); g.fillRect(r.w - ws.side, 0, ws.side, r.h);
+    g.fillRect(0, r.h - ws.bottom, ex.x, ws.bottom); g.fillRect(ex.x + ex.w, r.h - ws.bottom, r.w - ex.x - ex.w, ws.bottom);
+    g.fillStyle = '#d9cfa8'; g.fillRect(ex.x, ex.y, ex.w, ex.h);
+    label(r.label || r.id, ws.side + 8, 8, 28); label('walls: art pending', ws.side + 8, 44, 18, '#ffd');
+  }
+  label('exit', ex.x + 12, ex.y + 2, 18, '#333');
+  if (DEBUG) { g.strokeStyle = '#0f0'; g.lineWidth = 1; for (const s of roomSolids(r)) g.strokeRect(s.x + .5, s.y + .5, s.w - 1, s.h - 1);
+    g.strokeStyle = '#f0f'; g.strokeRect(GAME.pos.x - FOOT.w / 2 + .5, GAME.pos.y - FOOT.h + .5, FOOT.w - 1, FOOT.h - 1); }
+}
+function render() {
+  if (GAME.scene === 'town') { camTown(); draw(GAME.pos); }
+  else drawRoom(ROOMS[GAME.scene]);
+}
+function camTown() { const c = camFor(GAME.pos, W, H); CAM.x = c.x; CAM.y = c.y; }
+const doorPt = b => door(b);
+function frontSpot(b) {  // where a figure stands after leaving: on the path 20px below the door's reach point, stepping down 8px until walkable
+  const d = door(b); let y = d.y + 20;
+  while (blocked(d.x, y) && y < H) y += 8;
+  return { x: d.x, y };
+}
+function enter(id) {
+  const r = ROOMS[id]; if (!r) return false;
+  GAME.scene = id; GAME.pos = { ...r.spawn }; window.__inRoom = true; render(); return true;
+}
+function leave() {
+  const b = target(GAME.scene); if (!b) return false;
+  GAME.scene = 'town'; GAME.pos = frontSpot(b); window.__inRoom = false; render(); return true;
+}
+function step(dx, dy, frames = 1) {  // dx, dy in -1..0..1; one call per frame; diagonals use 3px per axis
+  for (let n = 0; n < frames; n++) {
+    const sp = dx && dy ? Math.round(SPEED * .75) : SPEED, mx = dx * sp, my = dy * sp, p = GAME.pos;
+    if (GAME.scene === 'town') {
+      slide(p, mx, my, (x, y) => !blocked(x, y));
+      if (dy < 0) {  // walking up into a door: feet at the door's base point, centre within the door's width
+        const b = B.find(b => { if (!b.door) return false; const d = doorPt(b); return Math.abs(p.x - d.x) <= b.door.w / 2 && p.y <= d.y && p.y >= d.y - 8; });
+        if (b) { enter(b.id); return; }
+      }
+    } else {
+      const r = ROOMS[GAME.scene];
+      slide(p, mx, my, (x, y) => roomOk(r, x, y));
+      if (p.y >= r.exit.y + 8 && p.x >= r.exit.x && p.x <= r.exit.x + r.exit.w) { leave(); return; }
+    }
+  }
+  render();
+}
+function initGame() {
+  GAME.pos = { ...spr }; render();
+  window.__game = {
+    get scene() { return GAME.scene; }, get pos() { return { ...GAME.pos }; }, get rooms() { return ROOMS; },
+    enter, exit: leave, step,
+    teleport(x, y) { GAME.pos = { x, y }; render(); },
+    doorPoint: id => { const b = target(id); return b && doorPt(b); },
+    frontSpot: id => { const b = target(id); return b && frontSpot(b); },
+  };
+  const K = { ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r', ArrowUp: 'u', w: 'u', ArrowDown: 'd', s: 'd' };
+  addEventListener('keydown', e => { const k = K[e.key.length === 1 ? e.key.toLowerCase() : e.key]; if (k) { GAME.keys[k] = true; e.preventDefault(); } });
+  addEventListener('keyup', e => { const k = K[e.key.length === 1 ? e.key.toLowerCase() : e.key]; if (k) GAME.keys[k] = false; });
+  addEventListener('blur', () => { GAME.keys = {}; });
+  (function loop() {
+    const k = GAME.keys, dx = (k.r ? 1 : 0) - (k.l ? 1 : 0), dy = (k.d ? 1 : 0) - (k.u ? 1 : 0);
+    if (dx || dy) step(dx, dy, 1);
+    requestAnimationFrame(loop);
+  })();
 }
 const target = id => B.find(b => b.id === id && b.door);
 let spr = { ...T.spawn }, left = window.TOWN_ASSETS.assets.length;
@@ -161,7 +281,7 @@ function start() {
     window.walkPath = path;
     (function step() { if (i < path.length) { spr = path[i]; i += 2; draw(spr); requestAnimationFrame(step); } })();
   }
-  draw(spr); ready();
+  draw(spr); if (PLAY) initGame(); ready();
 }
 for (const a of window.TOWN_ASSETS.assets) {
   a.im = new Image(); a.im.onload = a.im.onerror = () => { if (--left === 0) start(); }; a.im.src = '../' + a.png;
