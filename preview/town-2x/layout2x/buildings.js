@@ -105,12 +105,12 @@ window.TOWN2X = /*JSON*/
    "id": "right",
    "x": 2200,
    "y": 957,
-   "w": 710,
+   "w": 721,
    "h": 128
   },
   {
    "id": "pub_door",
-   "x": 3241,
+   "x": 3153,
    "y": 1152,
    "w": 96,
    "h": 160
@@ -266,19 +266,19 @@ window.TOWN2X = /*JSON*/
    "label": "Pub",
    "kind": "building",
    "district": "centre",
-   "img": "assets/town2x/pub_r17d.png",
-   "w": 583,
-   "h": 421,
-   "x": 2910,
-   "y": 731,
+   "img": "assets/town2x/pub_r17e.png",
+   "w": 560,
+   "h": 390,
+   "x": 2921,
+   "y": 762,
    "door": {
-    "x": 349,
-    "y": 271,
+    "x": 250,
+    "y": 240,
     "w": 60,
     "h": 110,
-    "dx": 87,
+    "dx": 0,
     "dy": -40,
-    "measured": "pub_r17d outer frame x341-416, top y259, threshold y381; opening x357-401 y274-380"
+    "measured": "pub_r17e: outer casing x229-331, lintel top y226; leaf x237-323, top y241, threshold y350 (opening 109 tall); centre x280"
    },
    "status": "locked"
   },
@@ -305,18 +305,21 @@ window.TOWN2X = /*JSON*/
    "label": "Library",
    "kind": "building",
    "district": "working",
-   "img": "assets/town2x/library_r17d.png",
-   "w": 610,
-   "h": 500,
-   "x": 702,
-   "y": 1777,
+   "img": "assets/town2x/library_r17e.png",
+   "w": 473,
+   "h": 355,
+   "x": 770,
+   "y": 1922,
    "door": {
-    "x": 275,
-    "y": 390,
+    "x": 206,
+    "y": 210,
     "w": 60,
-    "h": 110
+    "h": 110,
+    "dx": 0,
+    "dy": -35,
+    "measured": "library_r17e: stone frame x192-280; leaf x207-265, top y214, threshold y320 (opening 106 tall); centre x236"
    },
-   "status": "stand-in-r17d"
+   "status": "stand-in-r17e"
   },
   {
    "id": "hall",
