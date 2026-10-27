@@ -74,28 +74,31 @@ window.TOWN2X = /*JSON*/
    "x": 841,
    "y": 844,
    "door": {
-    "x": 262,
-    "y": 311,
+    "x": 349,
+    "y": 271,
     "w": 60,
-    "h": 110
+    "h": 110,
+    "dx": 87,
+    "dy": -40,
+    "measured": "pub_r17d outer frame x341-416, top y259, threshold y381; opening x357-401 y274-380"
    },
    "status": "latest-r17d"
   },
   {
    "id": "lab",
    "label": "Lab",
-   "img": "assets/town2x/lab_r16c.png",
-   "w": 436,
-   "h": 334,
+   "img": "assets/town2x/lab_r16b.png",
+   "w": 434,
+   "h": 332,
    "x": 1784,
    "y": 743,
    "door": {
-    "x": 188,
-    "y": 224,
+    "x": 187,
+    "y": 222,
     "w": 60,
     "h": 110
    },
-   "status": "accepted-candidate"
+   "status": "accepted"
   },
   {
    "id": "oak",

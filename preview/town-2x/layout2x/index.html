@@ -20,7 +20,7 @@ function blocked(fx, fy) {
   if (l < 0 || r > W || t < 0 || fy > H) return true;
   return B.some(b => l < b.x + b.w && r > b.x && t < b.y + b.h - SP.h && fy > b.y);
 }
-function door(b) { return { x: b.x + b.door.x + b.door.w / 2, y: b.y + b.door.y + b.door.h + 4 }; }
+function door(b) { return { x: b.x + b.door.x + b.door.w / 2, y: Math.max(b.y + b.door.y + b.door.h, b.y + b.h) + 4 }; }
 function bfs(s, e) {
   const cw = Math.ceil(W / CELL), ch = Math.ceil(H / CELL), key = (i, j) => j * cw + i;
   const si = Math.round(s.x / CELL), sj = Math.round(s.y / CELL), ei = Math.round(e.x / CELL), ej = Math.round(e.y / CELL);
