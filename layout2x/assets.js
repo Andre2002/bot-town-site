@@ -178,39 +178,39 @@ window.TOWN_ASSETS = /*JSON*/
    "id": "library",
    "label": "Library",
    "kind": "building",
-   "png": "assets/town2x/library_r17e.png",
+   "png": "assets/town2x/library_r29.png",
    "footprint": {
     "x": 1696,
-    "y": 1372,
-    "w": 473,
-    "h": 355
+    "y": 1363,
+    "w": 594,
+    "h": 364
    },
    "door": {
-    "x": 1932,
-    "y": 1692
+    "x": 2174,
+    "y": 1690
    },
    "anchor": {
-    "x": 1932,
+    "x": 1993.0,
     "y": 1727
    }
   },
   {
    "id": "mage_shop",
-   "label": "Mage shop (redraw pending)",
+   "label": "Mage shop",
    "kind": "building",
-   "png": "assets/town2x/slots/mage_shop.png",
+   "png": "assets/town2x/mage_r2.png",
    "footprint": {
     "x": 64,
-    "y": 1760,
-    "w": 467,
-    "h": 480
+    "y": 1878,
+    "w": 429,
+    "h": 362
    },
    "door": {
-    "x": 298,
-    "y": 2240
+    "x": 196,
+    "y": 2205
    },
    "anchor": {
-    "x": 297,
+    "x": 278.5,
     "y": 2240
    }
   },

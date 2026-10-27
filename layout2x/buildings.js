@@ -62,9 +62,9 @@ window.TOWN2X = /*JSON*/
    "id": "library",
    "label": "Library",
    "x": 1664,
-   "y": 1372,
-   "w": 600,
-   "h": 368
+   "y": 1340,
+   "w": 656,
+   "h": 400
   },
   {
    "id": "park",
@@ -122,7 +122,7 @@ window.TOWN2X = /*JSON*/
    "id": "library_walk",
    "x": 1632,
    "y": 1727,
-   "w": 537,
+   "w": 688,
    "h": 96
   },
   {
@@ -334,40 +334,38 @@ window.TOWN2X = /*JSON*/
    "label": "Library",
    "kind": "building",
    "district": "library",
-   "img": "assets/town2x/library_r17e.png",
-   "w": 473,
-   "h": 355,
+   "img": "assets/town2x/library_r29.png",
+   "w": 594,
+   "h": 364,
    "x": 1696,
-   "y": 1372,
+   "y": 1363,
    "door": {
-    "x": 206,
-    "y": 210,
-    "w": 60,
-    "h": 110,
-    "dx": 0,
-    "dy": -35,
-    "measured": "library_r17e: stone frame x192-280; leaf x207-265, top y214, threshold y320 (opening 106 tall); centre x236"
+    "x": 439,
+    "y": 204,
+    "w": 78,
+    "h": 123,
+    "measured": "library_r29 (594x364): door frame x439-516, arch top y204, leaf x442-516, threshold (last leaf row) y326; door point = bottom-centre (478,327)"
    },
-   "status": "stand-in-r17e"
+   "status": "final-r29"
   },
   {
    "id": "mage_shop",
-   "label": "Mage shop (redraw pending)",
+   "label": "Mage shop",
    "kind": "building",
    "district": "working",
-   "img": null,
-   "w": 467,
-   "h": 480,
+   "img": "assets/town2x/mage_r2.png",
+   "w": 429,
+   "h": 362,
    "x": 64,
-   "y": 1760,
+   "y": 1878,
    "door": {
-    "x": 204,
-    "y": 370,
-    "w": 60,
-    "h": 110
+    "x": 101,
+    "y": 216,
+    "w": 63,
+    "h": 111,
+    "measured": "mage_r2 (429x362): door on the LEFT; frame x101-163, arch top y216, threshold y326; door point = bottom-centre (132,327)"
    },
-   "status": "placeholder",
-   "note": "replaces tower_r16c (467x837) in the layout; the r16c art stays in town/assets/town2x/ untouched until Frame redraws a shorter mage shop"
+   "status": "final-r2"
   },
   {
    "id": "lab",
