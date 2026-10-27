@@ -452,7 +452,7 @@ const FEATURES = {
   library: { kind: 'building', x: 327, y: 238, w: 60, h: 56, door: 357 }, // door: centre x of the door in library.png, base y 294
   plaza_cat: { x: 226, y: 200, w: 16, h: 10 },
   task_board: { x: 361, y: 183, w: 34, h: 29, tip: 'Read the Task Board' }, // drawn in drawPubSquare; click opens view `board`
-  board_spot_1: { x: 367, y: 204, w: 8, h: 10 }, board_spot_2: { x: 381, y: 204, w: 8, h: 10 }, board_wait: { x: 344, y: 214, w: 8, h: 10 }, // feet (371,214), (385,214), (348,224)
+  board_spot_1: { x: 367, y: 201, w: 8, h: 10 }, board_spot_2: { x: 381, y: 201, w: 8, h: 10 }, board_wait: { x: 344, y: 211, w: 8, h: 10 }, // feet (371,211), (385,211), (348,221)
   bell: { x: 257, y: 102, w: 14, h: 14, tip: 'Ring for a stand-up', ms: 2880 }, // bell.png: 3 frames of 14x14 (rest, tilt-left, tilt-right); rings `ms` (6 x F2/F1/F3/F1 at 120 ms)
 };
 const ROOFS = {
@@ -510,11 +510,12 @@ const HANG = Object.fromEntries(HANGOUTS.map(h => [h.id, h]));
 const STALLS = [{ x: 172, y: 138, c: '#8a5cc2' }, { x: 272, y: 138, c: '#d9483d' }, { x: 172, y: 195, c: '#d9483d' }, { x: 272, y: 195, c: '#8a5cc2' }];
 const RING = { x: 98, y: 178, rx: 36, ry: 26 }, RING_IN = -2.06;
 HANGOUTS.forEach(h => { if (h.area === 'park') h.a = Math.atan2((h.y - RING.y) / RING.ry, (h.x - RING.x) / RING.rx); });
-const LAMPS = [[80, 114], [172, 114], [306, 114], [394, 114], [166, 228], [300, 228], [150, 296], [322, 296], [80, 296], [408, 296], [318, 199]]; // the pub square's lamp stands at its west edge, by the way in (2026-10-14: it stood mid-square where the terrace drinkers stand)
+const LAMPS = [[80, 114], [172, 114], [306, 114], [394, 114], [166, 228], [300, 228], [145, 296], [322, 296], [80, 296], [408, 296], [300, 199]]; // the pub square's lamp stands at its west edge, by the way in (2026-10-14: it stood mid-square where the terrace drinkers stand)
 const NODES = {
-  m44: [44, 122], m80: [80, 122], m122: [122, 122], m157: [157, 122], m240: [240, 122], m312: [312, 122], m358: [358, 122], m436: [436, 122],
-  v200: [312, 190], v219: [312, 219],
-  b44: [44, 304], b116: [116, 304], b157: [157, 304], b198: [198, 304], b271: [271, 304], b312: [312, 304], b357: [357, 304], b446: [446, 304],
+  // nodes sit on the middle of the 14 px dirt (2026-10-27): walkers keep right at LANE_HALF either side of it
+  m44: [44, 122.5], m80: [80, 122.5], m122: [122, 122.5], m157: [154.5, 122.5], m240: [240, 122.5], m312: [310.5, 122.5], m358: [358, 122.5], m436: [436, 122.5],
+  v200: [310.5, 190], v219: [310.5, 221.5],
+  b44: [44, 304.5], b116: [116, 304.5], b157: [154.5, 304.5], b198: [198, 304.5], b271: [271, 304.5], b312: [310.5, 304.5], b357: [357, 304.5], b446: [446, 304.5],
 };
 const EDGES = [['m44', 'm80'], ['m80', 'm122'], ['m122', 'm157'], ['m157', 'm240'], ['m240', 'm312'], ['m312', 'm358'], ['m358', 'm436'],
   ['m157', 'b157'], ['m312', 'v200'], ['v200', 'v219'], ['v219', 'b312'],
@@ -857,7 +858,7 @@ function drawPlaza(c) {
   STALLS.forEach(s => stall(c, s.x, s.y, s.c));
   crate(c, 199, 146); crate(c, 207, 150); crate(c, 262, 205); barrel(c, 260, 146);
   [[206, 218], [260, 218]].forEach(([x, y]) => bench(c, x, y, 15));
-  [[164, 136], [302, 136]].forEach(([x, y]) => { R(c, x - 3, y - 1, 7, 6, P.out); R(c, x - 2, y, 5, 4, '#b5653c'); bush(c, x, y, '#e5486b'); });
+  [[164, 136], [299, 136]].forEach(([x, y]) => { R(c, x - 3, y - 1, 7, 6, P.out); R(c, x - 2, y, 5, 4, '#b5653c'); bush(c, x, y, '#e5486b'); });
   // flower planters by the fountain
   [[208, 199], [258, 199]].forEach(([x, y], i) => { R(c, x - 7, y - 3, 15, 7, P.out); R(c, x - 6, y - 2, 13, 5, P.wood); R(c, x - 6, y - 2, 13, 1, P.woodL); for (let j = 0; j < 6; j++) { R(c, x - 5 + j * 2, y - 5, 2, 3, P.leaf); R(c, x - 5 + j * 2, y - 6 + (j % 2), 1, 1, ['#e5486b', '#f2c14e', '#c08cf0'][(j + i) % 3]); } });
   // apple cart
@@ -946,7 +947,7 @@ function buildBg() {
   for (let i = 0; i < 160; i++) { const x = Math.floor(rnd() * W), y = Math.floor(rnd() * H); R(c, x, y, 1, 2, P.grassDD); R(c, x + 2, y, 1, 2, P.grassDD); R(c, x + 1, y - 1, 1, 2, P.grassD); }
   for (let i = 0; i < 90; i++) R(c, Math.floor(rnd() * W), Math.floor(rnd() * H), 1, 1, ['#f4e285', '#f29a9a', '#ffffff', '#c9a7f0'][Math.floor(rnd() * 4)]);
   // roads
-  const roads = [[0, 116, W, 12], [0, 298, W, 12], [153, 128, 9, 170], [306, 128, 12, 170], [318, 215, 108, 8], [318, 186, 46, 7], [354, 186, 9, 8], ...HOUSES.map(h => [h.c - 4, 94, 9, 22])];
+  const roads = [[0, 116, W, 14], [0, 298, W, 14], [148, 128, 14, 170], [304, 128, 14, 170], [318, 215, 108, 14], [318, 186, 43, 14], [349, 186, 14, 8], ...HOUSES.map(h => [h.c - 6, 94, 14, 22])]; // every road 14 px of dirt: room for two lanes (2026-10-27)
   roads.forEach(([x, y, w, h]) => R(c, x - 1, y - 1, w + 2, h + 2, P.dirtD));
   roads.forEach(([x, y, w, h]) => R(c, x, y, w, h, P.dirt));
   roads.forEach(([x, y, w, h]) => {
@@ -963,7 +964,7 @@ function buildBg() {
   // houses with garden fences
   HOUSES.forEach((h, i) => {
     drawHouse(c, i);
-    fenceH(c, h.x - 2, h.c - 8, 104); fenceH(c, h.c + 6, h.x + h.w, 104);
+    fenceH(c, h.x - 2, h.c - 9, 104); fenceH(c, h.c + 9, h.x + h.w, 104);
     bush(c, h.x + 2, 114, i % 2 ? '#f2c14e' : '#e5486b'); bush(c, h.x + h.w - 2, 114, i % 2 ? '#ffffff' : '#c08cf0');
   });
   drawHall(c);
@@ -1059,12 +1060,12 @@ function goalFor(b) {
   const wp = workPlace(b);
   if (st === 'working' && b.id !== S.elder && wp.startsWith('ws')) {
     const k = b.ws = +wp.slice(2), dx = LOT_C[k] + (DOOR_X[S.ws[k].type] || 0);
-    return { key: 'ws' + k, node: LOT_NODE[k], enter: 'ws' + k, pts: [[dx, 301], [dx, 296]] };
+    return { key: 'ws' + k, node: LOT_NODE[k], enter: 'ws' + k, pts: [[dx, 298], [dx, 296]] };
   }
   if (st === 'idle' && b.note && b.note.done) return boardGoal(b);
   let place = st === 'working' ? (b.id === S.elder ? 'hall' : wp) : st === 'meeting' ? S.meeting.place : idlePlace(S.hour, b.role, b);
   if (place === 'hall') return { key: 'hall', node: 'm240', enter: 'hall', pts: [[240, 110], [240, 101]] };
-  if (place === 'library') return { key: 'library', node: 'b357', enter: 'library', pts: [[FEATURES.library.door, 301], [FEATURES.library.door, 296]] };
+  if (place === 'library') return { key: 'library', node: 'b357', enter: 'library', pts: [[FEATURES.library.door, 298], [FEATURES.library.door, 296]] };
   if (place === 'plaza') { const p = plazaPoint(); return { key: 'plaza', node: 'm240', area: 'plaza', pts: [[240, 132], [240, 160], [p[0], 160], p] }; }
   if (place === 'pub') return { key: 'pub', node: 'v200', enter: 'pub', pts: [[322, 190], [358, 190], [358, 180]] };
   if (place === 'park') {
@@ -1075,11 +1076,42 @@ function goalFor(b) {
   return homeGoal(b);
 }
 function homeGoal(b) { const c = HOUSES[b.house].c; return { key: 'home', node: 'm' + c, enter: 'house' + b.house, pts: [[c, 108], [c, 98]] }; }
-function routeTo(b, gl) {
-  const path = b.exit.map(p => ({ x: p[0], y: p[1] }));
-  shortest(b.anchor, gl.node).forEach(n => path.push({ x: NODES[n][0], y: NODES[n][1], node: n }));
-  gl.pts.forEach(p => path.push({ x: p[0], y: p[1] }));
-  b.path = path; b.goalKey = gl.key; b.goal = gl; b.anchor = gl.node; b.arrived = false; b.exit = gl.pts.slice(0, -1).reverse();
+// Two-way lanes (2026-10-27): every street is 14 px of dirt, so a walker keeps right, LANE_HALF off the middle; the two lanes are
+// 2 * LANE_HALF = 13 px apart (minimum gap 4 + one body 9) and both stay on the dirt. Lane points are the graph nodes and the y219
+// lane by the board; a corner's point is the miter of both lanes' offsets, so the walker changes lane only at a node (an
+// intersection). Off-road points (doors, spots) stay put: the door approach merges into the lane at its node, the door cell.
+const LANE_HALF = 6.5, LANE_Y219 = 221.5;
+function laneize(path) {
+  const on = path.map(p => p.node != null || (Math.abs(p.y - 219) < 0.01 && p.x >= 318) || (p.x === 240 && (p.y === 132 || p.y === 160)));   // + the plaza's way in at x240
+  const P = path.map((p, i) => on[i] && p.node == null ? { x: p.x, y: LANE_Y219 } : { x: p.x, y: p.y });
+  const nrm = i => { const dx = P[i + 1].x - P[i].x, dy = P[i + 1].y - P[i].y, d = Math.hypot(dx, dy); return d < 0.5 ? null : { x: -dy / d, y: dx / d }; };
+  return path.map((p, i) => {
+    if (!on[i]) return p;
+    const a = i > 0 && on[i - 1] ? nrm(i - 1) : null, c = i < path.length - 1 && on[i + 1] ? nrm(i) : null;
+    let o = a && c ? (a.x * c.x + a.y * c.y < -0.5 ? c : { x: (a.x + c.x) / (1 + a.x * c.x + a.y * c.y), y: (a.y + c.y) / (1 + a.x * c.x + a.y * c.y) }) : (a || c);
+    if (!o) return Object.assign({}, p, P[i]);
+    return Object.assign({}, p, { x: P[i].x + o.x * LANE_HALF, y: P[i].y + o.y * LANE_HALF });
+  });
+}
+const DIRV = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
+function routeTo(b, gl, inDir) {
+  const build = from => { const p = b.exit.map(q => ({ x: q[0], y: q[1] }));
+    shortest(from, gl.node).forEach(n => p.push({ x: NODES[n][0], y: NODES[n][1], node: n }));
+    gl.pts.forEach(q => p.push({ x: q[0], y: q[1] })); return p; };
+  let path = build(b.anchor);
+  if (inDir && path[0] && path[0].node) {   // a re-route at a node: the walker comes in on its own lane, the node's corner point is mitred from that heading
+    const N = path[0], v = DIRV[inDir], back = { x: N.x - v[0] * 20, y: N.y - v[1] * 20 };
+    let lp = laneize([back, ...path]).slice(1);
+    // the new turn point lies behind the walker (it is already past it): it goes on to the next node ahead and turns there
+    if (lp[0] && ((lp[0].x - b.x) * v[0] + (lp[0].y - b.y) * v[1]) < -0.5) {
+      const ahead = (ADJ[N.node] || []).find(m => { const dx = NODES[m][0] - N.x, dy = NODES[m][1] - N.y, d = Math.hypot(dx, dy) || 1; return dx / d * v[0] + dy / d * v[1] > 0.99; });
+      if (ahead) { const p2 = build(ahead); if (p2[0] && p2[0].node === ahead) { path = [N, ...p2]; lp = laneize([back, ...path]).slice(1).slice(1); } }
+    }
+    b.path = lp;
+  } else b.path = laneize(path);
+  // a re-route from mid-street: drop a first point b is already past on its way (no 5 px step back into the other lane's traffic)
+  while (b.path.length > 1) { const [p, q] = b.path, ux = q.x - p.x, uy = q.y - p.y, u = Math.hypot(ux, uy) || 1; if (((b.x - p.x) * ux + (b.y - p.y) * uy) / u > 0 && Math.abs((b.x - p.x) * uy - (b.y - p.y) * ux) / u < LANE_HALF) b.path.shift(); else break; }
+  b.goalKey = gl.key; b.goal = gl; b.anchor = gl.node; b.arrived = false; b.exit = gl.pts.slice(0, -1).reverse();
   if (gl.area === 'park') b.ringA = gl.ringA;
   b.hang = gl.hang ? gl.hang.id : null;
   dirty = true;
@@ -1087,7 +1119,7 @@ function routeTo(b, gl) {
 function wander(b, now) {
   if (b.goal.area === 'plaza') {
     const p = plazaPoint();
-    b.path = [{ x: b.x, y: 160 }, { x: p[0], y: 160 }, { x: p[0], y: p[1] }];
+    b.path = laneize([{ x: b.x, y: 160 }, { x: p[0], y: 160 }, { x: p[0], y: p[1] }]);
     b.exit = [[p[0], 160], [240, 160], [240, 132]];
   } else {
     const from = HANG[b.hang], free = HANGOUTS.filter(h => h.area === 'park' && h.id !== b.hang && !S.bots.some(o => o.hang === h.id));
@@ -1141,7 +1173,7 @@ function finishSummon(b) {
 function assign(b, task) { if (b.state === 'asleep') addLog(`${b.name} woke up for a new task`); b.state = 'working'; b.task = task; say(b, `On it: ${task}`); addLog(`${b.name} started: ${task}`); }
 // Task Board notes: a working bot takes the lowest free slot (4x2 grid) and keeps it; when it goes idle the note is `done` and stays pinned
 // until the bot walks over and takes it (goalFor -> boardGoal, then the take sequence in update). Asleep or meeting bots keep theirs up.
-const BOARD = { spots: [[371, 214], [385, 214]], wait: [348, 224] };
+const BOARD = { spots: [[371, 211], [385, 211]], wait: [348, 221] };   // 2026-10-27: readers stand at the legs' feet (y211), 4 px clear of the westbound lane (y215); the queue waits mid-road between the lanes
 const boardSlot = i => [365 + (i % 4) * 7, 190 + (i >> 2) * 5];
 function syncNotes() {
   S.bots.forEach(b => {
@@ -1212,6 +1244,8 @@ function turnHere(b, inside) {
   b.dir = b.gaitWant || b.dir;
   resetGait(b); b.gaitF = f;
   b.sx = inside ? b.ix : b.x; b.sy = inside ? b.iy : b.y;
+  if (!inside && b.turnAt) { b.pendX = (b.turnAt.x - b.x) * 3; b.pendY = (b.turnAt.y - b.y) * 3; b.sx = b.turnAt.x; b.sy = b.turnAt.y; }
+  b.turnAt = null;
 }
 // Side x jumps by the stance foot's back-step, so that foot stays put for the plant. On a down/up facing, pending
 // x and y are both spent on every frame change in the same 4,3,3,4 shares, so a steep diagonal never hops sideways
@@ -1256,19 +1290,43 @@ function pullPath(b, inside, k, budget) {
     if (want !== b.dir) {
       if ((b.gaitF === 0 || b.gaitF === 4) && b.gaitInto < 1e-4 && !b.gaitStop) {
         const f = b.gaitF; b.dir = want; resetGait(b); b.gaitF = f; // a turn on a contact goes on from that frame
-      } else { b.gaitStop = 'turn'; b.gaitWant = want; return { dx, dy, used: budget - left, done: false, hold: true, reroute: false }; }
+      } else { b.gaitStop = 'turn'; b.gaitWant = want; if (!inside) b.turnAt = { x: b.sx, y: b.sy }; return { dx, dy, used: budget - left, done: false, hold: true, reroute: false }; }
     }
     const dist = Math.hypot(ex, ey);
+    // a corner with a turn just ahead, nearer than the frames still to go to the next contact (where the turn can land): the turn starts now.
+    // Those frames carry the body on to the corner and it turns there; waiting for the cursor to reach the corner first made them carry it past
+    // the corner, up to a stride, into the lane of whoever was waiting there, and tilted its heading back across the way it came
+    const nx = !inside && path()[1];
+    if (nx && dist > left && dist <= (b.room == null ? Infinity : b.room) && !b.gaitStop && walkFacing(nx.x - px, nx.y - py, want) !== want) {
+      const dd = sideFace(b.dir) ? Math.abs(px * k - b.devX) : Math.hypot(px * k - b.devX, py * k - b.devY), c = toContact(b);
+      if (c > 0 && dd <= c) {
+        if (sideFace(b.dir)) b.pendY += ey * k; else { b.pendX += ex * k; b.pendY += ey * k; }   // the frames spend this on the way to the corner
+        b.sx = px; b.sy = py; b.turnAt = { x: px, y: py };
+        if (raw.node && path().length > 1) {
+          path().shift();
+          const gl = goalFor(b);
+          if (gl.key !== b.goalKey && !meetsHeadOn(b)) {
+            b.anchor = raw.node; b.exit = [];
+            b.devX = Math.round(b.sx * k); b.devY = Math.round(b.sy * k); syncDev(b, k, inside);
+            resetGait(b);
+            b.turnAt = null; routeTo(b, gl, b.dir); b.sx = b.x; b.sy = b.y;
+            return { dx: 0, dy: 0, used: budget - left, done: false, hold: false, reroute: true };
+          }
+        } else path().shift();
+        b.gaitStop = 'turn'; b.gaitWant = walkFacing(path()[0].x - px, path()[0].y - py, want);
+        return { dx, dy, used: budget - left, done: false, hold: true, reroute: false };
+      }
+    }
     if (dist <= left) {
       dx += ex; dy += ey; left -= dist; b.sx = px; b.sy = py;
       if (!inside && raw.node && path().length > 1) {
         path().shift();
         const gl = goalFor(b);
-        if (gl.key !== b.goalKey) {
+        if (gl.key !== b.goalKey && !meetsHeadOn(b)) {   // not mid-pass: turning back onto the way of someone it is just passing would put it right in front of them
           b.anchor = raw.node; b.exit = [];
           b.devX = Math.round(b.sx * k); b.devY = Math.round(b.sy * k); syncDev(b, k, inside);
           resetGait(b);
-          routeTo(b, gl); b.sx = b.x; b.sy = b.y;
+          b.turnAt = null; routeTo(b, gl, b.dir); b.sx = b.x; b.sy = b.y;
           return { dx: 0, dy: 0, used: budget - left, done: false, hold: false, reroute: true };
         }
       } else path().shift();
@@ -1289,6 +1347,15 @@ function beginGait(b, inside, k) {
   if (raw) b.dir = walkFacing((inside ? raw[0] : raw.x) - b.sx, (inside ? raw[1] : raw.y) - b.sy, b.dir);
 }
 // budget is world px this tick. The frame clock spends device px (budget * k) in foot steps of GAIT_STEP.
+// someone coming the other way in b's lane, close enough that b turning about now would land right in front of them
+function meetsHeadOn(b) {
+  const fx = b.flow ? b.flow[0] : 0, fy = b.flow ? b.flow[1] : 0; if (!fx && !fy) return false;
+  return S.bots.some(o => {
+    if (o === b || o.inside || !o.path[0]) return false;
+    const hx = o.path[0].x - o.x, hy = o.path[0].y - o.y, hd = Math.hypot(hx, hy) || 1, rx = o.x - b.x, ry = o.y - b.y;
+    return (hx * fx + hy * fy) / hd <= LANE_SAME && rx * fx + ry * fy > -LANE_BODY && Math.hypot(rx, ry) < 2 * LANE_BODY && Math.abs(rx * fy - ry * fx) < LANE_BODY / 2;
+  });
+}
 function stepGait(b, budget, inside, now) {
   const k = inside ? 2 : 3;
   if (!b.gaitOn) beginGait(b, inside, k);
@@ -1323,14 +1390,30 @@ function update(b, dt, now) {
   if (b.spot != null && Math.hypot(b.x - HILL.spots[b.spot][0], b.y - HILL.spots[b.spot][1]) >= 20) b.spot = null;
   if (b.bspot != null && !(b.state === 'idle' && b.note && b.note.done)) { b.bspot = b.bt = null; if (b.note && b.note.inHand) b.note = null; } // not (or no longer) on a board errand
   if (b.inside) { updateInside(b, dt, now); return; }
-  if (!b.path.length && !b.gaitStop) {
+  const passing = !b.path.length && !b.gaitStop && S.bots.some(o => o !== b && !o.inside && laneView(o).walking && Math.hypot(laneView(o).x - b.x, laneView(o).y - b.y) < LANE_BODY);
+  if (!b.path.length && !b.gaitStop && !passing) {   // someone walking right by: set off once they are a body on, not under their feet (a route makes b a body on the way at once)
     const gl = goalFor(b);
     if (gl.key !== b.goalKey) routeTo(b, gl);
     else if (b.goal && b.goal.area && now > b.wanderAt && !S.pinned) wander(b, now);
   }
-  b.walking = false;
+  b.wasWalking = b.walking; b.walking = false;
+  let room = Infinity; if (!b.path.length) b.heldSince = null;
+  if (b.path.length) {
+    if (!b.gaitOn) b.stepFrom = { x: b.x, y: b.y };
+    room = laneRoom(b);
+    const entering = laneEntering(b); // not yet moving on this heading: starting, or turning onto it
+    if (room === 0 || (!b.wasWalking && !b.gaitOn)) { if (b.heldSince == null) b.heldSince = now; } else b.heldSince = null;   // HELD: at zero lane room
+    if (!room && entering) {   // not on its way yet: waits for the slot to clear
+      if (b.gaitOn && b.gaitStop === 'turn' && !toContact(b)) turnHere(b, false);   // a turn already on its contact lands now (no travel): left pending, the walker stood frozen mid-turn, its cursor back at the corner and its body past it
+      return;
+    }
+  }
+  b.room = room;
   let budget = 10.6 * paceBehind(b, dt) * dt;
+  budget = Math.min(budget, room);
+  const px = b.x, py = b.y;
   if (b.path.length || b.gaitOn) stepGait(b, budget, false, now);
+  const mv = Math.hypot(b.x - px, b.y - py); if (mv > 1e-3) b.flow = [(b.x - px) / mv, (b.y - py) / mv]; // which way it is really moving
   if (b.arrived && !b.path.length && b.bspot != null && b.bspot !== 'wait' && b.goalKey === 'board' + b.bspot) { // at its spot: face up 0.6 s, reach 0.4 s (the note comes off at the reach), then off with the note in hand
     const bt = b.bt || (b.bt = { ph: 'face', t: now });
     if (bt.ph === 'face' && now - bt.t >= 600) { bt.ph = 'reach'; bt.t = now; b.note.inHand = true; S.pins[b.note.slot] = b.color; }
@@ -1342,24 +1425,156 @@ function update(b, dt, now) {
 // Head-on walkers just pass
 // The pace eases to that target (b.pace, frame-rate independent): slowing behind someone takes PACE_TAU_SLOW, recovering PACE_TAU_RECOVER
 // longer, so a walker closing on another never brakes or lurches in one tick. Distance still drives the frames, so there is no foot slide
-const PACE_TAU_SLOW = 0.15, PACE_TAU_RECOVER = 0.5;
+const PACE_TAU_SLOW = 0.15, PACE_TAU_RECOVER = 0.5, PACE_SLEW = 5; // PACE_SLEW: pace units a second (0.1 a 20 ms tick)
 function paceBehind(b, dt) {
-  const target = paceTarget(b);
+  const target = b.path[0] ? b.speed * Math.min(1, b.room / LANE_EASE) : b.speed; // b.room: the lane room this tick (laneRoom)
   if (!b.path[0] || b.pace == null || !dt) return b.pace = target;
-  return b.pace += (target - b.pace) * (1 - Math.exp(-dt / (target < b.pace ? PACE_TAU_SLOW : PACE_TAU_RECOVER)));
+  const d = (target - b.pace) * (1 - Math.exp(-dt / (target < b.pace ? PACE_TAU_SLOW : PACE_TAU_RECOVER))), cap = PACE_SLEW * dt;
+  return b.pace += Math.max(-cap, Math.min(cap, d)); // never more than PACE_SLEW of the speed a second, whatever the target does
 }
-function paceTarget(b) {
-  const p = b.path[0]; if (!p) return b.speed;
-  const dx = p.x - b.x, dy = p.y - b.y, d = Math.hypot(dx, dy) || 1, ux = dx / d, uy = dy / d;
-  let pace = b.speed;
-  S.bots.forEach(o => {
-    if (o === b || o.inside || !o.walking || !o.path[0]) return;
-    const rx = o.x - b.x, ry = o.y - b.y, along = rx * ux + ry * uy, side = Math.abs(rx * uy - ry * ux);
-    const ox = o.path[0].x - o.x, oy = o.path[0].y - o.y;
-    if (along <= 0 || side >= 8 || ox * ux + oy * uy <= 0) return;
-    if (along < 26) pace = Math.min(pace, o.speed * 0.5); else if (along < 34) pace = Math.min(pace, o.speed);
-  });
-  return pace;
+// lane reservation: a walker owns the stretch of path a body (LANE_BODY px) ahead of it, going its way. Before a step the walker looks down its own path
+// (LANE_LOOK px, round corners and onto merged lanes too, and crossing ways count as the same way) for someone going the same way that the step would bring within LANE_BODY of it, and only
+// moves up to that point (nothing, if it is already that close): it waits at a merge or behind a slower walker until the slot is free. Two walkers
+// each holding the other (converging ways, an overlap) settle by who reaches the meeting point first. The smooth pace brake above does the easing, this is the hard floor
+const LANE_MARGIN = 3, LANE_AHEAD = 26, LANE_TURN_AHEAD = 0.9, LANE_BODY = 9, LANE_LOOK = 26, LANE_SAMPLE = 1, LANE_REACH = 12, LANE_TURN = 0.3, LANE_PT = 2, LANE_MEET = 3, LANE_EASE = 24, LANE_SAME = -0.3, LANE_BEHIND = -3; // going 'the same way' includes crossing (heading dot above LANE_SAME); 'ahead' includes beside, up to LANE_BEHIND px back
+// how far down a's path it can go before it would come within LANE_BODY of o (null: never within LANE_LOOK)
+function laneHit(a, o, reach, extra) {
+  const dx0 = o.path[0].x - o.x, dy0 = o.path[0].y - o.y, d0 = Math.hypot(dx0, dy0) || 1;
+  const spots = reach ? lanePts(o).filter(q => q.s <= reach).map(q => ({ ...q, body: true })) : [{ x: o.x, y: o.y, hx: dx0 / d0, hy: dy0 / d0, body: laneStill(o), held: !!o.held && !(!o.walking && !o.wasWalking) }, ...lanePts(o).filter(q => q.s > 0 && q.s <= LANE_AHEAD && q.hx * dx0 / d0 + q.hy * dy0 / d0 < LANE_TURN_AHEAD).map(q => ({ ...q, fut: true }))]; // where o is and, past a corner within LANE_AHEAD px, where it turns onto (only counted by a walker o is meeting head-on: it would otherwise be passed, then find o turned in front of it), or (reach) where it will be over its next reach px
+  const behind = laneEntering(a) && !laneEntering(o) ? -LANE_BODY : LANE_BEHIND;   // stepping out in front of someone already under way behind counts too
+  const body = LANE_BODY + (extra || 0);
+  let x = a.x, y = a.y, s = 0;
+  for (const p of a.path) {
+    const dx = p.x - x, dy = p.y - y, d = Math.hypot(dx, dy); if (!d) continue;
+    const hx = dx / d, hy = dy / d;
+    for (let t = 0; t < d; t += LANE_SAMPLE) {
+      if (s + t >= LANE_LOOK) return null;
+      for (const q of spots) {
+        if (!q.body && hx * q.hx + hy * q.hy <= LANE_SAME) continue;
+        if (q.held && hx * q.hx + hy * q.hy <= LANE_SAME && Math.abs((q.x - (x + hx * t)) * hy - (q.y - (y + hy * t)) * hx) >= LANE_SIDE) continue;   // a HELD body is passed only by its head-on partner on the other side of the lane, LANE_SIDE or more across   // a walker standing still mid-route is a body whichever way it faces: head-on passing is only for two on the move
+        if (q.fut && hx * dx0 / d0 + hy * dy0 / d0 > LANE_SAME) continue;   // o's turn is only seen by one it is meeting head-on
+        const rx = q.x - (x + hx * t), ry = q.y - (y + hy * t);
+        if (Math.abs(rx * hy - ry * hx) < body && rx * hx + ry * hy < body && rx * hx + ry * hy >= behind) return Math.max(0, s + t - LANE_SAMPLE);
+      }
+    }
+    s += d; x = p.x; y = p.y;
+    if (s >= LANE_LOOK) return null;
+  }
+  return null;
+}
+function laneEntering(w) {
+  if (!w.gaitOn || !w.stepFrom || Math.hypot(w.x - w.stepFrom.x, w.y - w.stepFrom.y) < 0.5) return true;
+  const hx = w.path[0].x - w.x, hy = w.path[0].y - w.y, hd = Math.hypot(hx, hy) || 1;
+  return !!w.flow && (hx * w.flow[0] + hy * w.flow[1]) / hd < LANE_TURN;
+}
+// the points down a walker's path, LANE_PT px apart as far as LANE_LOOK, each with the arc length to it and the heading there
+function lanePts(w) {
+  const pts = []; let x = w.x, y = w.y, s = 0, next = 0;
+  for (const p of w.path) {
+    const d = Math.hypot(p.x - x, p.y - y); if (!d) continue;
+    const hx = (p.x - x) / d, hy = (p.y - y) / d;
+    for (; next <= s + d && next <= LANE_LOOK; next += LANE_PT) { const t = next - s; pts.push({ x: x + hx * t, y: y + hy * t, s: next, hx, hy }); }
+    s += d; x = p.x; y = p.y;
+    if (s >= LANE_LOOK) break;
+  }
+  return pts;
+}
+// two walkers that each hold the other: one already under way has it over one just starting or turning onto the way; otherwise the one nearer the place their ways first meet (within LANE_MEET, going alike) goes first, the other waits; ways that never meet settle by id
+const laneMemo = {}, LANE_MEMO = 400; // ms
+// stood still mid-route (not walking this tick or the one before; b's own flag is cleared at the top of its update, so wasWalking carries the last tick)
+function laneStill(o) { return (!o.walking && !o.wasWalking); }   // standing, or HELD: at zero lane room for a tick or more (its gait may still be on)
+function laneFirst(b, o) {
+  if (laneStill(b) !== laneStill(o)) return laneStill(b);   // one standing in the other's way goes first: the one on the move cannot walk through it, and waiting for each other would hold both for ever
+  // one right behind the other (within the stopped one's spot, or LANE_BODY of a mover going on alike) yields to the one ahead: a stopped walker mid-route (a turn stop, a wait on the step) is a body on the way
+  for (const [f, l] of b.id < o.id ? [[b, o], [o, b]] : [[o, b], [b, o]]) {   // (in id order, so both ask the same way round)
+    const fx = f.path[0].x - f.x, fy = f.path[0].y - f.y, fd = Math.hypot(fx, fy) || 1, lx = l.path[0].x - l.x, ly = l.path[0].y - l.y, ld = Math.hypot(lx, ly) || 1;
+    const rx = l.x - f.x, ry = l.y - f.y, along = (rx * fx + ry * fy) / fd, side = Math.abs(rx * fy - ry * fx) / fd;
+    if (along <= 0 || side >= LANE_BODY / 2 || (l.walking && (along >= LANE_BODY || (fx * lx + fy * ly) / (fd * ld) <= LANE_SAME))) continue;
+    return l === b;
+  }
+  if (Math.hypot(o.x - b.x, o.y - b.y) < LANE_BODY) {   // already on top of each other (passing head-on, or one turning off just as they pass): the one free to walk on goes and clears the overlap; the one held up (by someone else ahead) cannot, and holding the free one there kept both in it
+    const rb = b.room == null ? Infinity : b.room, ro = o.room == null ? Infinity : o.room;
+    if (rb !== ro) return rb > ro;
+  }
+  const yb = !!(b.yielded && b.yielded[o.id]), yo = !!(o.yielded && o.yielded[b.id]);
+  if (yb !== yo) return yo;   // one already giving way to the other keeps giving way: the hold only just turned mutual (the one under way came round its corner), it is not a new meeting
+  const lo = b.id < o.id, p = lo ? b : o, q = lo ? o : b, key = p.id + '|' + q.id, t = Date.now(), m = laneMemo[key];   // the same answer whichever of the two asks: p, the lower id, decides for both
+  if (m && t - m.t < LANE_MEMO) { m.t = t; return m.pFirst === lo; }   // and it holds while the pair stays tied up: the walkers update one after the other and the sampled meeting point shifts with every step, so asked afresh each time both could go (or both wait)
+  const ep = laneEntering(p), eq = laneEntering(q); let pFirst = true;
+  if (ep !== eq) pFirst = eq;   // someone already moving on the way has it over one just starting or turning onto it
+  else {
+    const qp = lanePts(q);
+    find: for (const a of lanePts(p)) for (const c of qp) {
+      if (Math.hypot(a.x - c.x, a.y - c.y) > LANE_MEET || a.hx * c.hx + a.hy * c.hy <= LANE_SAME) continue;
+      pFirst = a.s !== c.s ? a.s < c.s : true; break find;
+    }
+  }
+  laneMemo[key] = { pFirst, t };
+  return pFirst === lo;
+}
+function laneRoom(b) {
+  let room = Infinity; const ys = {}, vb = laneView(b).path[0] ? laneView(b) : b;
+  for (const o0 of S.bots) {
+    const o = laneView(o0);
+    if (o0 === b || o.inside || !o.path[0]) continue;   // anyone mid-route holds their spot, walking or not (a turn stop, a wait on the step)
+    let r = laneHit(b, o);
+    if (r == null) continue;
+    if (laneHit(o, vb) != null) {   // each holds the other
+      if (laneFirst(vb, o)) continue;   // b reaches where their ways meet first: it goes
+      const r2 = laneHit(b, o, LANE_REACH, LANE_MARGIN), r3 = laneHit(b, o, 0, LANE_MARGIN);   // b waits: clear of where o is heading too, so o does not brush past, and a little further than a body since the gait steps in whole frames
+      if (r2 != null && r2 < r) r = r2;
+      if (r3 != null && r3 < r) r = r3;
+    }
+    ys[o.id] = 1;   // b gives way to o this tick
+    if (r < room) room = r;
+  }
+  b.yielded = ys;
+  const rc = laneCorner(b); if (rc < room) room = rc;
+  return room;
+}
+// the tick's lane snapshot: position, path, walking, room, HELD and give-way of every walker on the map, taken before anyone updates
+const LANE_SIDE = 4, LANE_DEADLOCK = 3000;   // LANE_SIDE: the across gap a head-on pass needs to go by a HELD body (the spec's minimum gap); LANE_DEADLOCK: ms a pair may stay HELD on each other
+function laneSnap(now) {
+  const snap = new Map();
+  for (const b of S.bots) {
+    if (b.inside) continue;
+    snap.set(b, { id: b.id, x: b.x, y: b.y, path: b.path.map(p => ({ x: p.x, y: p.y })), walking: b.walking, wasWalking: b.wasWalking, room: b.room,
+      held: b.heldSince != null, gaitOn: b.gaitOn, gaitStop: b.gaitStop, stepFrom: b.stepFrom && { x: b.stepFrom.x, y: b.stepFrom.y }, flow: b.flow && b.flow.slice(), yielded: b.yielded || {}, inside: false });
+  }
+  S.lsnap = snap;
+  laneDeadlock(now);
+}
+function laneView(o) { return (S.lsnap && S.lsnap.get(o)) || o; }
+// a turn corner is reserved like a lane spot: b may not come within LANE_BODY of a corner on its way while a bot standing or HELD is within LANE_BODY of it
+function laneCorner(b) {
+  let x = b.x, y = b.y, s = 0, room = Infinity;
+  for (let i = 0; i + 1 < b.path.length && s < LANE_LOOK; i++) {
+    const p = b.path[i], q = b.path[i + 1], d = Math.hypot(p.x - x, p.y - y), e = Math.hypot(q.x - p.x, q.y - p.y);
+    s += d;
+    if (d && e && ((p.x - x) * (q.x - p.x) + (p.y - y) * (q.y - p.y)) / (d * e) < LANE_TURN_AHEAD && s < LANE_LOOK) {
+      for (const o0 of S.bots) {
+        const o = laneView(o0);
+        if (o0 === b || o.inside || !o.path || !o.path[0] || !laneStill(o)) continue;
+        if (Math.hypot(o.x - p.x, o.y - p.y) < LANE_BODY && Math.hypot(o.x - b.x, o.y - b.y) >= 0) room = Math.min(room, Math.max(0, s - LANE_BODY));
+      }
+    }
+    x = p.x; y = p.y;
+  }
+  return room;
+}
+// deadlock breaker: two walkers HELD on each other longer than LANE_DEADLOCK: the lower id steps one body length aside (across its way, away from the other) and goes on from there
+function laneDeadlock(now) {
+  const H = S.bots.filter(b => !b.inside && b.path[0] && b.heldSince != null && now - b.heldSince > LANE_DEADLOCK);
+  for (const a of H) for (const c of H) {
+    if (a.id >= c.id || Math.hypot(a.x - c.x, a.y - c.y) >= LANE_LOOK || !((a.yielded && a.yielded[c.id]) || (c.yielded && c.yielded[a.id]))) continue;
+    const hx = a.path[0].x - a.x, hy = a.path[0].y - a.y, hd = Math.hypot(hx, hy) || 1;
+    let px = -hy / hd, py = hx / hd; if ((c.x - a.x) * px + (c.y - a.y) * py > 0) { px = -px; py = -py; }
+    a.path.unshift({ x: a.x + px * LANE_BODY, y: a.y + py * LANE_BODY });
+    a.heldSince = c.heldSince = null; delete laneMemo[a.id + '|' + c.id];
+    S.deadlocks = (S.deadlocks || 0) + 1; (S.deadlockLog = S.deadlockLog || []).push({ t: now, a: a.name || a.id, c: c.name || c.id, x: +a.x.toFixed(1), y: +a.y.toFixed(1) });
+    console.log(`[lane] deadlock breaker #${S.deadlocks}: ${a.name || a.id} steps aside from ${c.name || c.id} at (${a.x.toFixed(1)},${a.y.toFixed(1)})`);
+    return;
+  }
 }
 function arrive(b, now) {
   if (!b.arrived) { b.arrived = true; dirty = true; }
@@ -1378,6 +1593,7 @@ function lPath(x0, y0, x1, y1) {
 }
 // library desk: every visit stops at DESK first (take a book), and a bot holding one stops there again on the way out (hand it back)
 const DESK = { x: 104, y: 132 }, COVERS = ['#a2342c', '#37478f', '#36744a', '#c9a24a', '#2d6673'];
+const DOOR_CLEAR = 16; // px: the door's step on the map must be this clear of a walker before the next one steps out onto it
 function updateInside(b, dt, now) {
   const gl = goalFor(b), lib = b.inside === 'library';
   if (!b.gaitStop) {
@@ -1408,6 +1624,7 @@ function updateInside(b, dt, now) {
       else if (dk.ph === 'take' && now - dk.t >= 400) { b.deskDone = true; b.dk = null; }
       else if (dk.ph === 'ret' && now - dk.t >= 400) { b.ret = false; b.dk = null; b.ipath = lPath(b.ix, b.iy, DOOR_I.x, DOOR_I.y); }
     } else if (b.leaving) {
+      if (S.bots.some(o => o !== b && !o.inside && (o.walking || o.path.length) && Math.hypot(o.x - b.doorPt[0], o.y - b.doorPt[1]) < DOOR_CLEAR)) return; // someone just came out: wait inside until they're a body's length on
       b.leaving = false; b.inside = null; b.iwalk = false;
       b.x = b.doorPt[0]; b.y = b.doorPt[1]; routeTo(b, gl);
     } else if (b.istation === 'bed' && b.state === 'asleep') b.inBed = true;
@@ -2674,7 +2891,7 @@ else if (saved) restoreTown(saved); else SEEDS.forEach(summon);
 // library scenes: Wren at the desk (take frame, or return frame with returns 1), Sage mid-walk carrying a closed book, Quill reading on the open frame (or the flip frame)
 const libScene = ret => () => {
   const [wren, sage, quill] = ['Wren', 'Sage', 'Quill'].map(n => S.bots.find(b => b.name === n)), t = Date.now() + 1e12;
-  [wren, sage, quill].forEach(b => Object.assign(b, { state: 'idle', task: '', hang: null, idlePick: { block: 'eve', place: 'library' }, inside: 'library', goalKey: 'library', anchor: 'b357', exit: [[FEATURES.library.door, 301]], doorPt: [FEATURES.library.door, 296], ipath: [], leaving: false, deskDone: true, dk: null, ret: false, book: COVERS[b.id % 5] }));
+  [wren, sage, quill].forEach(b => Object.assign(b, { state: 'idle', task: '', hang: null, idlePick: { block: 'eve', place: 'library' }, inside: 'library', goalKey: 'library', anchor: 'b357', exit: [[FEATURES.library.door, 298]], doorPt: [FEATURES.library.door, 296], ipath: [], leaving: false, deskDone: true, dk: null, ret: false, book: COVERS[b.id % 5] }));
   if (ret) { Object.assign(wren, { book: null, leaving: true, ret: true, dir: 'left' }); S.libRet = 1; } // before the stations: a leaving bot drops out of the seat order
   [sage, quill].forEach(b => { const st = stationOf(b); Object.assign(b, { istation: st.key, ifx: { ...st } }); });
   Object.assign(sage, { ix: 88, iy: 110, ifx: { x: 104, y: 100, key: sage.istation } });
@@ -2739,7 +2956,7 @@ if (scene) {
   S.bots.forEach(b => { routeTo(b, goalFor(b)); const p = b.path.pop(); b.x = p.x; b.y = p.y; b.path = []; arrive(b, Date.now()); });
   if (scene.standup || scene.meeting || scene.seat) S.bots.forEach(b => { if (!b.inside) return; const st = stationOf(b); Object.assign(b, { ix: st.x, iy: st.y, istation: st.key, ifx: st, bubble: null }); });
   if (scene.wren) {
-    const w = S.bots.find(b => b.name === 'Wren'); Object.assign(w, { inside: 'library', goalKey: 'library', anchor: 'b357', exit: [[FEATURES.library.door, 301]], doorPt: [FEATURES.library.door, 296] });
+    const w = S.bots.find(b => b.name === 'Wren'); Object.assign(w, { inside: 'library', goalKey: 'library', anchor: 'b357', exit: [[FEATURES.library.door, 298]], doorPt: [FEATURES.library.door, 296] });
     const st = stationOf(w); Object.assign(w, { ix: st.x, iy: st.y, istation: st.key, ifx: st });
   }
   if (scene.hang) {
@@ -2760,6 +2977,7 @@ function frame(t) {
   S.hour = h;
   // 9:00 stand-up: only when the clock runs into 9:00 (live or fast), not when a time button jumps across it
   const nine = new Date(sim).setHours(9, 0, 0, 0); if (lastSim < nine && sim >= nine && sim - lastSim < 60000) ringBell(); lastSim = sim;
+  laneSnap(now);   // freeze every walker's lane state before anyone moves: each lane decision this tick reads the snapshot, so the update order cannot matter
   S.bots.forEach(b => update(b, dt, now));
   if (scene && scene.pinWhen && !S.pinned && scene.pinWhen()) S.pinned = true;
   if (S.meeting && now > S.meeting.until) endMeeting();
