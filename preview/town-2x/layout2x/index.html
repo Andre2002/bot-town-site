@@ -39,33 +39,56 @@ function bfs(s, e) {
   return path.reverse();
 }
 
-// walkable path bands (visual): lane centres through the gaps, door stubs down to a lane
-const P = 96, bands = [
-  [96, 1850 - P / 2, 2304, P],            // bottom lane
-  [96, 1344 - P / 2, 2208, P],            // middle lane (below pub, above cottages)
-  [627 - 8 - P / 2 + 8, 96, P, 1850 - 96],// left vertical (tower|hall, oak|ivy)
-  [1638 - P / 2, 96, P, 1344 - 96],       // right vertical (hall|library)
-  [627, 764 - P / 2, 1638 - 627 + P / 2, P], // upper lane under the hall
-  [1638, 663 - P / 2, 2304 - 1638, P],    // under the library
-];
-for (const b of B) { const d = door(b); bands.push([d.x - P / 2, d.y - 4, P, (b.y + b.h > 1400 ? 1850 : b.y + b.h > 1000 ? 1344 : b.y + b.h < 700 && b.x > 1500 ? 663 : b.id === 'hall' ? 764 : 1344) - d.y + 4]); }
+const MAP = q.get('map') === '1', SQ = T.square;
+const TINT = { residential: '#d98fb0', centre: '#e8c75a', working: '#6fa8dc' };
+function label(t, x, y, size, col) {
+  g.font = `bold ${size}px sans-serif`; g.textBaseline = 'top'; g.lineWidth = size / 5; g.strokeStyle = '#000'; g.strokeText(t, x, y);
+  g.fillStyle = col || '#fff'; g.fillText(t, x, y);
+}
+function paths() {
+  g.fillStyle = '#c9b98a';
+  for (const r of [...T.streets, ...T.spokes]) g.fillRect(r.x, r.y, r.w, r.h);
+  g.fillStyle = '#d9cfa8'; g.fillRect(SQ.x, SQ.y, SQ.w, SQ.h);
+  g.strokeStyle = '#8a7a50'; g.lineWidth = 4; g.strokeRect(SQ.x, SQ.y, SQ.w, SQ.h);
+}
+function mapOverlay() {
+  g.globalAlpha = .28;
+  for (const d of T.districts) { g.fillStyle = TINT[d.id] || '#fff'; g.fillRect(d.x, d.y, d.w, d.h); }
+  g.globalAlpha = 1; g.setLineDash([]); g.lineWidth = 6;
+  for (const d of T.districts) { g.strokeStyle = TINT[d.id] || '#fff'; g.strokeRect(d.x + 3, d.y + 3, d.w - 6, d.h - 6); label(d.label.toUpperCase(), d.x + 24, d.y + 16, 56, TINT[d.id]); }
+  label('Town square', SQ.x + 190, SQ.y + 60, 80);
+  for (const r of T.streets) label(r.id.replace('_', ' ') + ' (path)', r.x + 24, r.y + r.h / 2 - 20, 40, '#3a2f10');
+  for (const r of T.spokes) if (r.id !== 'pub_door') label('path', r.x + r.w / 2 - 40, r.y + (r.h > r.w ? Math.min(r.h / 2, 300) : r.h / 2) - 16, 32, '#3a2f10');
+  g.setLineDash([14, 10]);
+  for (const b of B) {
+    if (b.slot) { g.strokeStyle = '#00e5ff'; g.lineWidth = 4; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); label('slot ' + b.slot.w + 'x' + b.slot.h, b.x + b.slot.x + 10, b.y + b.slot.y + b.slot.h - 40, 28, '#00e5ff'); }
+  }
+  g.setLineDash([]);
+}
 
 function draw(spr) {
   g.fillStyle = '#5c8f3e'; g.fillRect(0, 0, W, H);
-  g.fillStyle = '#c9b98a'; for (const r of bands) g.fillRect(r[0], r[1], r[2], r[3]);
+  paths();
   let pending = B.length;
   for (const b of B) {
+    if (b.kind === 'lot') {
+      g.setLineDash([20, 12]); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); g.setLineDash([]);
+      label(b.label, b.x + 24, b.y + b.h / 2 - 16, 32);
+      if (b.slot) { g.setLineDash([14, 10]); g.strokeStyle = '#00e5ff'; g.lineWidth = 3; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); g.setLineDash([]); }
+      continue;
+    }
     if (b.img && b.im && b.im.complete) g.drawImage(b.im, b.x, b.y);
     else { g.fillStyle = b.img ? '#a55' : '#8a7a9a'; g.fillRect(b.x, b.y, b.w, b.h); g.strokeStyle = '#2a2233'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); }
     g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(b.x + .5, b.y + .5, b.w - 1, b.h - 1);
     g.fillStyle = '#000'; g.fillRect(b.x + 6, b.y + 6, 190, 20);
-    g.fillStyle = '#fff'; g.font = '14px monospace'; g.textBaseline = 'top'; g.fillText(`${b.id} ${b.w}x${b.h}`, b.x + 10, b.y + 9);
+    g.fillStyle = '#fff'; g.font = '14px monospace'; g.textBaseline = 'top'; g.fillText(`${b.label || b.id} ${b.w}x${b.h}`, b.x + 10, b.y + 9);
     const dx = b.x + b.door.x, dy = b.y + b.door.y;   // outer door frame
     g.strokeStyle = '#000'; g.lineWidth = 6; g.strokeRect(dx, dy, b.door.w, b.door.h);
     g.strokeStyle = '#ff2bd6'; g.lineWidth = 2; g.strokeRect(dx, dy, b.door.w, b.door.h);
     const cx = dx + b.door.w / 2, by = dy + b.door.h;  // threshold tick
     g.fillStyle = '#ff2bd6'; g.fillRect(cx - 14, by, 28, 2); g.fillRect(cx - 1, by, 2, 8);
   }
+  if (MAP) mapOverlay();
   if (spr) {
     g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(spr.x, spr.y, 24, 6, 0, 0, 7); g.fill();
     g.fillStyle = '#e2572b'; g.strokeStyle = '#111'; g.lineWidth = 2;
@@ -73,8 +96,8 @@ function draw(spr) {
     g.fillStyle = '#fff'; g.fillRect(spr.x - 10, spr.y - SP.h + 22, 6, 6); g.fillRect(spr.x + 4, spr.y - SP.h + 22, 6, 6);
   }
 }
-const target = id => B.find(b => b.id === id);
-let spr = null, left = B.length;
+const target = id => B.find(b => b.id === id && b.door);
+let spr = { ...T.spawn }, left = B.length;
 function ready() { window.layoutReady = true; }
 function start() {
   const at = q.get('at'), walk = q.get('walk');
@@ -87,7 +110,7 @@ function start() {
   draw(spr); ready();
 }
 for (const b of B) {
-  if (!b.img) { if (--left === 0) start(); continue; }
+  if (!b.img || b.kind === 'lot') { if (--left === 0) start(); continue; }
   b.im = new Image(); b.im.onload = b.im.onerror = () => { if (--left === 0) start(); }; b.im.src = '../' + b.img;
 }
 if (!B.length) start();
