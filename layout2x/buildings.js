@@ -334,7 +334,7 @@ window.TOWN2X = /*JSON*/
    "label": "Library",
    "kind": "building",
    "district": "library",
-   "img": "assets/town2x/library_r29.png",
+   "img": "assets/town2x/library_r30.png",
    "w": 594,
    "h": 364,
    "x": 1696,
@@ -372,18 +372,19 @@ window.TOWN2X = /*JSON*/
    "label": "Lab",
    "kind": "building",
    "district": "working",
-   "img": "assets/town2x/lab_r16b.png",
+   "img": "assets/town2x/lab_r19.png",
    "w": 434,
    "h": 332,
    "x": 627,
    "y": 1908,
    "door": {
-    "x": 187,
-    "y": 222,
-    "w": 60,
-    "h": 110
+    "x": 182,
+    "y": 211,
+    "w": 70,
+    "h": 115,
+    "measured": "lab_r19 (434x332): door opening x182-251, arch top y211, threshold y325; door point = bottom-centre (217,326)"
    },
-   "status": "accepted"
+   "status": "final-r19"
   },
   {
    "id": "workshop",

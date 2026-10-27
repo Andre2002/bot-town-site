@@ -178,7 +178,7 @@ window.TOWN_ASSETS = /*JSON*/
    "id": "library",
    "label": "Library",
    "kind": "building",
-   "png": "assets/town2x/library_r29.png",
+   "png": "assets/town2x/library_r30.png",
    "footprint": {
     "x": 1696,
     "y": 1363,
@@ -218,7 +218,7 @@ window.TOWN_ASSETS = /*JSON*/
    "id": "lab",
    "label": "Lab",
    "kind": "building",
-   "png": "assets/town2x/lab_r16b.png",
+   "png": "assets/town2x/lab_r19.png",
    "footprint": {
     "x": 627,
     "y": 1908,
@@ -227,7 +227,7 @@ window.TOWN_ASSETS = /*JSON*/
    },
    "door": {
     "x": 844,
-    "y": 2240
+    "y": 2234
    },
    "anchor": {
     "x": 844,

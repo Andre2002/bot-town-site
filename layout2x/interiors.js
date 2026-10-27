@@ -651,9 +651,9 @@ window.TOWN_INTERIORS = /*JSON*/
     "back": 120
    },
    "exit": {
-    "x": 210,
+    "x": 205,
     "y": 424,
-    "w": 60,
+    "w": 70,
     "h": 24
    },
    "spawn": {
