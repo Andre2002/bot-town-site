@@ -4,8 +4,8 @@
 window.TOWN2X = /*JSON*/
 {
  "canvas": {
-  "w": 3600,
-  "h": 2560
+  "w": 3840,
+  "h": 2880
  },
  "SPRITE": {
   "h": 98,
@@ -14,106 +14,137 @@ window.TOWN2X = /*JSON*/
  "PATH_MIN": 128,
  "APRON": 160,
  "spawn": {
-  "x": 1800,
-  "y": 1021
+  "x": 1920,
+  "y": 1092
  },
  "districts": [
+  {
+   "id": "civic",
+   "label": "Civic: hall + square",
+   "x": 1408,
+   "y": 0,
+   "w": 1024,
+   "h": 1404
+  },
   {
    "id": "residential",
    "label": "Residential",
    "x": 0,
    "y": 0,
-   "w": 3600,
-   "h": 603
+   "w": 1300,
+   "h": 1840
   },
   {
-   "id": "centre",
-   "label": "Centre",
-   "x": 0,
-   "y": 603,
-   "w": 3600,
-   "h": 837
+   "id": "pub",
+   "label": "Pub corner",
+   "x": 2426,
+   "y": 64,
+   "w": 720,
+   "h": 560
+  },
+  {
+   "id": "park",
+   "label": "Park",
+   "x": 2496,
+   "y": 780,
+   "w": 704,
+   "h": 624
+  },
+  {
+   "id": "library",
+   "label": "Library close",
+   "x": 3232,
+   "y": 900,
+   "w": 608,
+   "h": 600
   },
   {
    "id": "working",
-   "label": "Working",
+   "label": "Works quarter",
    "x": 0,
-   "y": 1440,
-   "w": 3600,
-   "h": 1120
+   "y": 1700,
+   "w": 3840,
+   "h": 1180
   }
  ],
  "square": {
-  "x": 1400,
-  "y": 781,
-  "w": 800,
-  "h": 480
+  "x": 1440,
+  "y": 812,
+  "w": 960,
+  "h": 560
  },
  "streets": [
   {
-   "id": "residential_street",
-   "x": 0,
-   "y": 443,
-   "w": 3600,
-   "h": 160
-  },
-  {
-   "id": "centre_street",
-   "x": 0,
-   "y": 1312,
-   "w": 3600,
+   "id": "high_street",
+   "x": 1312,
+   "y": 684,
+   "w": 2528,
    "h": 128
   },
   {
-   "id": "working_street",
+   "id": "oak_lane",
    "x": 0,
-   "y": 2277,
-   "w": 3600,
-   "h": 160
+   "y": 443,
+   "w": 1440,
+   "h": 128
+  },
+  {
+   "id": "ivy_lane",
+   "x": 0,
+   "y": 1047,
+   "w": 1440,
+   "h": 128
+  },
+  {
+   "id": "fern_lane",
+   "x": 0,
+   "y": 1647,
+   "w": 1440,
+   "h": 128
+  },
+  {
+   "id": "works_road",
+   "x": 0,
+   "y": 2600,
+   "w": 3840,
+   "h": 128
+  },
+  {
+   "id": "library_walk",
+   "x": 2400,
+   "y": 1372,
+   "w": 1440,
+   "h": 128
   }
  ],
  "spokes": [
   {
-   "id": "up",
-   "x": 1736,
+   "id": "hall_lane",
+   "x": 1312,
    "y": 443,
    "w": 128,
-   "h": 338
+   "h": 1332
   },
   {
-   "id": "down_left",
-   "x": 1312,
-   "y": 1261,
+   "id": "main_street",
+   "x": 1826,
+   "y": 1372,
    "w": 128,
-   "h": 1016
-  },
-  {
-   "id": "down_right",
-   "x": 2323,
-   "y": 1261,
-   "w": 128,
-   "h": 1016
-  },
-  {
-   "id": "left",
-   "x": 587,
-   "y": 957,
-   "w": 813,
-   "h": 128
-  },
-  {
-   "id": "right",
-   "x": 2200,
-   "y": 957,
-   "w": 721,
-   "h": 128
+   "h": 1228
   },
   {
    "id": "pub_door",
-   "x": 3153,
-   "y": 1152,
+   "x": 2722,
+   "y": 550,
    "w": 96,
-   "h": 160
+   "h": 134
+  },
+  {
+   "id": "east_lane",
+   "x": 3200,
+   "y": 684,
+   "w": 128,
+   "h": 816
   }
  ],
  "buildings": [
@@ -125,8 +156,8 @@ window.TOWN2X = /*JSON*/
    "img": null,
    "w": 429,
    "h": 347,
-   "x": 193,
-   "y": 96,
+   "x": 96,
+   "y": 1300,
    "status": "lot",
    "slot": {
     "x": 38,
@@ -143,7 +174,7 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/oak_r16l.png",
    "w": 429,
    "h": 346,
-   "x": 750,
+   "x": 96,
    "y": 97,
    "door": {
     "x": 185,
@@ -167,7 +198,7 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/ivy_r16e.png",
    "w": 429,
    "h": 347,
-   "x": 1307,
+   "x": 653,
    "y": 96,
    "door": {
     "x": 185,
@@ -191,8 +222,8 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/birch_r16d.png",
    "w": 429,
    "h": 347,
-   "x": 1864,
-   "y": 96,
+   "x": 96,
+   "y": 700,
    "door": {
     "x": 185,
     "y": 237,
@@ -215,8 +246,8 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/fern_r16f.png",
    "w": 429,
    "h": 347,
-   "x": 2421,
-   "y": 96,
+   "x": 653,
+   "y": 700,
    "door": {
     "x": 185,
     "y": 237,
@@ -239,8 +270,8 @@ window.TOWN2X = /*JSON*/
    "img": null,
    "w": 429,
    "h": 347,
-   "x": 2978,
-   "y": 96,
+   "x": 653,
+   "y": 1300,
    "status": "lot",
    "slot": {
     "x": 38,
@@ -253,24 +284,24 @@ window.TOWN2X = /*JSON*/
    "id": "spare_w1",
    "label": "Spare lot (working)",
    "kind": "lot",
-   "district": "centre",
+   "district": "working",
    "img": null,
    "w": 480,
    "h": 360,
-   "x": 107,
-   "y": 731,
+   "x": 2562,
+   "y": 2240,
    "status": "lot"
   },
   {
    "id": "pub",
    "label": "Pub",
    "kind": "building",
-   "district": "centre",
+   "district": "pub",
    "img": "assets/town2x/pub_r17e.png",
    "w": 560,
    "h": 390,
-   "x": 2921,
-   "y": 762,
+   "x": 2490,
+   "y": 160,
    "door": {
     "x": 250,
     "y": 240,
@@ -290,8 +321,8 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/tower_r16c.png",
    "w": 467,
    "h": 837,
-   "x": 107,
-   "y": 1440,
+   "x": 797,
+   "y": 1763,
    "door": {
     "x": 204,
     "y": 727,
@@ -304,12 +335,12 @@ window.TOWN2X = /*JSON*/
    "id": "library",
    "label": "Library",
    "kind": "building",
-   "district": "working",
+   "district": "library",
    "img": "assets/town2x/library_r17e.png",
    "w": 473,
    "h": 355,
-   "x": 770,
-   "y": 1922,
+   "x": 3296,
+   "y": 1017,
    "door": {
     "x": 206,
     "y": 210,
@@ -325,12 +356,12 @@ window.TOWN2X = /*JSON*/
    "id": "hall",
    "label": "Hall",
    "kind": "building",
-   "district": "working",
+   "district": "civic",
    "img": "assets/town2x/hall_r16d.png",
    "w": 883,
    "h": 588,
-   "x": 1440,
-   "y": 1689,
+   "x": 1479,
+   "y": 96,
    "door": {
     "x": 412,
     "y": 478,
@@ -347,8 +378,8 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/lab_r16b.png",
    "w": 434,
    "h": 332,
-   "x": 2451,
-   "y": 1945,
+   "x": 1392,
+   "y": 2268,
    "door": {
     "x": 187,
     "y": 222,
@@ -365,8 +396,8 @@ window.TOWN2X = /*JSON*/
    "img": null,
    "w": 480,
    "h": 360,
-   "x": 3013,
-   "y": 1917,
+   "x": 1954,
+   "y": 2240,
    "door": {
     "x": 210,
     "y": 250,
@@ -374,8 +405,27 @@ window.TOWN2X = /*JSON*/
     "h": 110
    },
    "status": "placeholder"
+  },
+  {
+   "id": "park",
+   "label": "Park (returns from the old layout)",
+   "kind": "lot",
+   "status": "park",
+   "img": null,
+   "w": 640,
+   "h": 560,
+   "x": 2528,
+   "y": 812,
+   "district": "park"
   }
- ]
+ ],
+ "viewport": {
+  "x": 640,
+  "y": 0,
+  "w": 2560,
+  "h": 1440,
+  "assumption": "1920x1080 screen, camera zoom 0.75 -> 2560x1440 world px"
+ }
 }
 /*END*/;
 if (typeof module !== 'undefined') module.exports = window.TOWN2X;

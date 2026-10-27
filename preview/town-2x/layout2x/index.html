@@ -8,8 +8,10 @@
 const T = window.TOWN2X, W = T.canvas.w, H = T.canvas.h, SP = T.SPRITE, B = T.buildings;
 const q = new URLSearchParams(location.search);
 const scale = parseFloat(q.get('scale') || '1');
-const cv = document.getElementById('c'); cv.width = W; cv.height = H;
-cv.style.width = W * scale + 'px'; cv.style.height = H * scale + 'px';
+const V = T.viewport, VIEW = q.get('view') === '1';  // ?view=1: open at the initial viewport
+const CVW = VIEW ? V.w : W, CVH = VIEW ? V.h : H;
+const cv = document.getElementById('c'); cv.width = CVW; cv.height = CVH;
+cv.style.width = CVW * scale + 'px'; cv.style.height = CVH * scale + 'px';
 const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
 const CELL = 8;
 
@@ -40,7 +42,7 @@ function bfs(s, e) {
 }
 
 const MAP = q.get('map') === '1', SQ = T.square;
-const TINT = { residential: '#d98fb0', centre: '#e8c75a', working: '#6fa8dc' };
+const TINT = { residential: '#d98fb0', civic: '#e8c75a', working: '#6fa8dc', pub: '#e08a3c', park: '#7fd06a', library: '#b48ae0' };
 function label(t, x, y, size, col) {
   g.font = `bold ${size}px sans-serif`; g.textBaseline = 'top'; g.lineWidth = size / 5; g.strokeStyle = '#000'; g.strokeText(t, x, y);
   g.fillStyle = col || '#fff'; g.fillText(t, x, y);
@@ -48,6 +50,8 @@ function label(t, x, y, size, col) {
 function paths() {
   g.fillStyle = '#c9b98a';
   for (const r of [...T.streets, ...T.spokes]) g.fillRect(r.x, r.y, r.w, r.h);
+  const PK = B.find(b => b.id === 'park');
+  if (PK) { g.fillStyle = '#4f8a35'; g.fillRect(PK.x, PK.y, PK.w, PK.h); g.fillStyle = '#2f6a25'; for (let i = 0; i < 14; i++) { g.beginPath(); g.arc(PK.x + 60 + (i % 5) * 125, PK.y + 80 + Math.floor(i / 5) * 190, 34, 0, 7); g.fill(); } }
   g.fillStyle = '#d9cfa8'; g.fillRect(SQ.x, SQ.y, SQ.w, SQ.h);
   g.strokeStyle = '#8a7a50'; g.lineWidth = 4; g.strokeRect(SQ.x, SQ.y, SQ.w, SQ.h);
 }
@@ -56,7 +60,10 @@ function mapOverlay() {
   for (const d of T.districts) { g.fillStyle = TINT[d.id] || '#fff'; g.fillRect(d.x, d.y, d.w, d.h); }
   g.globalAlpha = 1; g.setLineDash([]); g.lineWidth = 6;
   for (const d of T.districts) { g.strokeStyle = TINT[d.id] || '#fff'; g.strokeRect(d.x + 3, d.y + 3, d.w - 6, d.h - 6); label(d.label.toUpperCase(), d.x + 24, d.y + 16, 56, TINT[d.id]); }
-  label('Town square', SQ.x + 190, SQ.y + 60, 80);
+  label('Town square', SQ.x + 240, SQ.y + 60, 80);
+  g.setLineDash([40, 20]); g.lineWidth = 14; g.strokeStyle = '#000'; g.strokeRect(V.x + 8, V.y + 8, V.w - 16, V.h - 16);
+  g.lineWidth = 8; g.strokeStyle = '#ff3030'; g.strokeRect(V.x + 8, V.y + 8, V.w - 16, V.h - 16); g.setLineDash([]);
+  label(`Initial view ${V.w}x${V.h}`, V.x + 30, V.y + V.h - 90, 56, '#ff6060');
   for (const r of T.streets) label(r.id.replace('_', ' ') + ' (path)', r.x + 24, r.y + r.h / 2 - 20, 40, '#3a2f10');
   for (const r of T.spokes) if (r.id !== 'pub_door') label('path', r.x + r.w / 2 - 40, r.y + (r.h > r.w ? Math.min(r.h / 2, 300) : r.h / 2) - 16, 32, '#3a2f10');
   g.setLineDash([14, 10]);
@@ -67,6 +74,7 @@ function mapOverlay() {
 }
 
 function draw(spr) {
+  g.setTransform(1, 0, 0, 1, VIEW ? -V.x : 0, VIEW ? -V.y : 0);
   g.fillStyle = '#5c8f3e'; g.fillRect(0, 0, W, H);
   paths();
   let pending = B.length;
