@@ -52,23 +52,32 @@ function paths() {
   for (const r of [...T.streets, ...T.spokes]) g.fillRect(r.x, r.y, r.w, r.h);
   const PK = B.find(b => b.id === 'park');
   if (PK) { g.fillStyle = '#4f8a35'; g.fillRect(PK.x, PK.y, PK.w, PK.h); g.fillStyle = '#2f6a25'; for (let i = 0; i < 14; i++) { g.beginPath(); g.arc(PK.x + 60 + (i % 5) * 125, PK.y + 80 + Math.floor(i / 5) * 190, 34, 0, 7); g.fill(); } }
+  for (const r of T.reserve || []) { g.setLineDash([24, 16]); g.strokeStyle = '#ffe9a8'; g.lineWidth = 4; g.strokeRect(r.x + 2, r.y + 2, r.w - 4, r.h - 4); g.setLineDash([]); label(r.label, r.x + 20, r.y + r.h / 2 - 16, 28, '#ffe9a8'); }
   g.fillStyle = '#d9cfa8'; g.fillRect(SQ.x, SQ.y, SQ.w, SQ.h);
   g.strokeStyle = '#8a7a50'; g.lineWidth = 4; g.strokeRect(SQ.x, SQ.y, SQ.w, SQ.h);
+}
+// district label: shrink to fit the district, and drop it to the bottom edge when the top one would cover a building
+function distLabel(d) {
+  const s = d.label.toUpperCase(); let size = 56; g.font = `bold ${size}px sans-serif`;
+  while (size > 24 && g.measureText(s).width > d.w - 48) { size -= 4; g.font = `bold ${size}px sans-serif`; }
+  const w = g.measureText(s).width, hits = y => B.some(b => b.x < d.x + 24 + w && b.x + b.w > d.x + 24 && b.y < y + size && b.y + b.h > y);
+  let y = d.y + 16; if (hits(y) && !hits(d.y + d.h - size - 16)) y = d.y + d.h - size - 16;
+  label(s, d.x + 24, y, size, TINT[d.id]);
 }
 function mapOverlay() {
   g.globalAlpha = .28;
   for (const d of T.districts) { g.fillStyle = TINT[d.id] || '#fff'; g.fillRect(d.x, d.y, d.w, d.h); }
   g.globalAlpha = 1; g.setLineDash([]); g.lineWidth = 6;
-  for (const d of T.districts) { g.strokeStyle = TINT[d.id] || '#fff'; g.strokeRect(d.x + 3, d.y + 3, d.w - 6, d.h - 6); label(d.label.toUpperCase(), d.x + 24, d.y + 16, 56, TINT[d.id]); }
+  for (const d of T.districts) { g.strokeStyle = TINT[d.id] || '#fff'; g.strokeRect(d.x + 3, d.y + 3, d.w - 6, d.h - 6); distLabel(d); }
   label('Town square', SQ.x + 240, SQ.y + 60, 80);
   g.setLineDash([40, 20]); g.lineWidth = 14; g.strokeStyle = '#000'; g.strokeRect(V.x + 8, V.y + 8, V.w - 16, V.h - 16);
   g.lineWidth = 8; g.strokeStyle = '#ff3030'; g.strokeRect(V.x + 8, V.y + 8, V.w - 16, V.h - 16); g.setLineDash([]);
-  label(`Initial view ${V.w}x${V.h}`, V.x + 30, V.y + V.h - 90, 56, '#ff6060');
-  for (const r of T.streets) label(r.id.replace('_', ' ') + ' (path)', r.x + 24, r.y + r.h / 2 - 20, 40, '#3a2f10');
+  { const s = `Initial view ${V.w}x${V.h} (zoom ${V.zoom})`; g.font = 'bold 56px sans-serif'; label(s, V.x + V.w - g.measureText(s).width - 40, V.y + V.h - 90, 56, '#ff6060'); }
+  for (const r of T.streets) { const s = r.id.replace('_', ' ') + ' (path)'; g.font = 'bold 40px sans-serif'; label(s, r.x + r.w / 2 - g.measureText(s).width / 2, r.y + r.h / 2 - 20, 40, '#3a2f10'); }
   for (const r of T.spokes) if (r.id !== 'pub_door') label('path', r.x + r.w / 2 - 40, r.y + (r.h > r.w ? Math.min(r.h / 2, 300) : r.h / 2) - 16, 32, '#3a2f10');
   g.setLineDash([14, 10]);
   for (const b of B) {
-    if (b.slot) { g.strokeStyle = '#00e5ff'; g.lineWidth = 4; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); label('slot ' + b.slot.w + 'x' + b.slot.h, b.x + b.slot.x + 10, b.y + b.slot.y + b.slot.h - 40, 28, '#00e5ff'); }
+    if (b.slot) { g.strokeStyle = '#00e5ff'; g.lineWidth = 4; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); label('slot ' + b.slot.w + 'x' + b.slot.h, b.x + b.slot.x + 10, b.y + b.slot.y + 8, 28, '#00e5ff'); }
   }
   g.setLineDash([]);
 }
@@ -81,7 +90,7 @@ function draw(spr) {
   for (const b of B) {
     if (b.kind === 'lot') {
       g.setLineDash([20, 12]); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4); g.setLineDash([]);
-      label(b.label, b.x + 24, b.y + b.h / 2 - 16, 32);
+      if (!(MAP && T.districts.some(d => d.id === b.id))) label(b.label, b.x + 24, b.y + b.h / 2 - 16, 32);  // map: the district label already names it
       if (b.slot) { g.setLineDash([14, 10]); g.strokeStyle = '#00e5ff'; g.lineWidth = 3; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); g.setLineDash([]); }
       continue;
     }

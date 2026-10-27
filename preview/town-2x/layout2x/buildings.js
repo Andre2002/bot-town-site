@@ -4,8 +4,8 @@
 window.TOWN2X = /*JSON*/
 {
  "canvas": {
-  "w": 3840,
-  "h": 2880
+  "w": 4224,
+  "h": 2720
  },
  "SPRITE": {
   "h": 98,
@@ -14,158 +14,149 @@ window.TOWN2X = /*JSON*/
  "PATH_MIN": 128,
  "APRON": 160,
  "spawn": {
-  "x": 1920,
+  "x": 2112,
   "y": 1092
  },
  "districts": [
-  {
-   "id": "civic",
-   "label": "Civic: hall + square",
-   "x": 1408,
-   "y": 0,
-   "w": 1024,
-   "h": 1404
-  },
   {
    "id": "residential",
    "label": "Residential",
    "x": 0,
    "y": 0,
-   "w": 1300,
-   "h": 1840
+   "w": 1600,
+   "h": 1078
+  },
+  {
+   "id": "civic",
+   "label": "Civic: hall + square",
+   "x": 1600,
+   "y": 0,
+   "w": 1018,
+   "h": 1404
+  },
+  {
+   "id": "tbd",
+   "label": "TBD (open lot)",
+   "x": 2618,
+   "y": 96,
+   "w": 560,
+   "h": 560
   },
   {
    "id": "pub",
-   "label": "Pub corner",
-   "x": 2426,
-   "y": 64,
+   "label": "Pub",
+   "x": 2620,
+   "y": 780,
+   "w": 700,
+   "h": 520
+  },
+  {
+   "id": "teleport",
+   "label": "Teleport base (placeholder)",
+   "x": 3456,
+   "y": 780,
+   "w": 768,
+   "h": 720
+  },
+  {
+   "id": "library",
+   "label": "Library",
+   "x": 2176,
+   "y": 1404,
    "w": 720,
-   "h": 560
+   "h": 580
   },
   {
    "id": "park",
    "label": "Park",
-   "x": 2496,
-   "y": 780,
-   "w": 704,
-   "h": 624
-  },
-  {
-   "id": "library",
-   "label": "Library close",
-   "x": 3232,
-   "y": 900,
-   "w": 608,
-   "h": 600
+   "x": 0,
+   "y": 1094,
+   "w": 1150,
+   "h": 560
   },
   {
    "id": "working",
    "label": "Works quarter",
    "x": 0,
-   "y": 1700,
-   "w": 3840,
-   "h": 1180
+   "y": 1660,
+   "w": 4224,
+   "h": 1060
   }
  ],
  "square": {
-  "x": 1440,
+  "x": 1648,
   "y": 812,
-  "w": 960,
+  "w": 928,
   "h": 560
  },
  "streets": [
   {
    "id": "high_street",
-   "x": 1312,
+   "x": 1543,
    "y": 684,
-   "w": 2528,
+   "w": 2681,
    "h": 128
   },
   {
    "id": "oak_lane",
    "x": 0,
    "y": 459,
-   "w": 1440,
+   "w": 1543,
    "h": 128
   },
   {
    "id": "ivy_lane",
    "x": 0,
-   "y": 1063,
-   "w": 1440,
+   "y": 934,
+   "w": 1543,
    "h": 128
   },
   {
-   "id": "fern_lane",
-   "x": 0,
-   "y": 1663,
-   "w": 1440,
+   "id": "pub_yard",
+   "x": 2576,
+   "y": 1268,
+   "w": 672,
+   "h": 128
+  },
+  {
+   "id": "library_walk",
+   "x": 2176,
+   "y": 1759,
+   "w": 624,
    "h": 128
   },
   {
    "id": "works_road",
    "x": 0,
-   "y": 2600,
-   "w": 3840,
-   "h": 128
-  },
-  {
-   "id": "library_walk",
-   "x": 2400,
-   "y": 1372,
-   "w": 1440,
+   "y": 2539,
+   "w": 4224,
    "h": 128
   }
  ],
  "spokes": [
   {
-   "id": "hall_lane",
-   "x": 1312,
+   "id": "res_lane",
+   "x": 1543,
    "y": 459,
    "w": 128,
-   "h": 1332
+   "h": 603
   },
   {
    "id": "main_street",
-   "x": 1826,
+   "x": 2048,
    "y": 1372,
    "w": 128,
-   "h": 1228
+   "h": 1167
   },
   {
-   "id": "pub_door",
-   "x": 2722,
-   "y": 550,
-   "w": 96,
-   "h": 134
-  },
-  {
-   "id": "east_lane",
-   "x": 3200,
-   "y": 684,
+   "id": "west_lane",
+   "x": 1216,
+   "y": 1062,
    "w": 128,
-   "h": 816
+   "h": 1477
   }
  ],
  "buildings": [
-  {
-   "id": "spare_r1",
-   "label": "Spare lot (house)",
-   "kind": "lot",
-   "district": "residential",
-   "img": null,
-   "w": 429,
-   "h": 347,
-   "x": 96,
-   "y": 1316,
-   "status": "lot",
-   "slot": {
-    "x": 38,
-    "y": 47,
-    "w": 352,
-    "h": 300
-   }
-  },
   {
    "id": "oak",
    "label": "Oak",
@@ -174,7 +165,7 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/oak_r16l.png",
    "w": 429,
    "h": 346,
-   "x": 96,
+   "x": 64,
    "y": 113,
    "door": {
     "x": 185,
@@ -198,7 +189,7 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/ivy_r16e.png",
    "w": 429,
    "h": 347,
-   "x": 653,
+   "x": 589,
    "y": 112,
    "door": {
     "x": 185,
@@ -222,8 +213,8 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/birch_r16d.png",
    "w": 429,
    "h": 347,
-   "x": 96,
-   "y": 716,
+   "x": 64,
+   "y": 587,
    "door": {
     "x": 185,
     "y": 237,
@@ -246,8 +237,8 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/fern_r16f.png",
    "w": 429,
    "h": 347,
-   "x": 653,
-   "y": 716,
+   "x": 589,
+   "y": 587,
    "door": {
     "x": 185,
     "y": 237,
@@ -263,33 +254,45 @@ window.TOWN2X = /*JSON*/
    }
   },
   {
-   "id": "spare_r2",
-   "label": "Spare lot (house)",
+   "id": "park",
+   "label": "Park",
    "kind": "lot",
-   "district": "residential",
+   "status": "park",
    "img": null,
-   "w": 429,
-   "h": 347,
-   "x": 653,
-   "y": 1316,
-   "status": "lot",
-   "slot": {
-    "x": 38,
-    "y": 47,
-    "w": 352,
-    "h": 300
-   }
+   "w": 1024,
+   "h": 480,
+   "x": 64,
+   "y": 1126,
+   "district": "park"
   },
   {
-   "id": "spare_w1",
-   "label": "Spare lot (working)",
+   "id": "hall",
+   "label": "Hall",
+   "kind": "building",
+   "district": "civic",
+   "img": "assets/town2x/hall_r16d.png",
+   "w": 883,
+   "h": 588,
+   "x": 1671,
+   "y": 96,
+   "door": {
+    "x": 412,
+    "y": 478,
+    "w": 60,
+    "h": 110
+   },
+   "status": "accepted-candidate"
+  },
+  {
+   "id": "tbd",
+   "label": "TBD (open lot)",
    "kind": "lot",
-   "district": "working",
+   "district": "tbd",
    "img": null,
    "w": 480,
-   "h": 360,
-   "x": 2562,
-   "y": 2240,
+   "h": 420,
+   "x": 2650,
+   "y": 160,
    "status": "lot"
   },
   {
@@ -300,8 +303,8 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/pub_r17e.png",
    "w": 560,
    "h": 390,
-   "x": 2490,
-   "y": 160,
+   "x": 2672,
+   "y": 878,
    "door": {
     "x": 250,
     "y": 240,
@@ -314,22 +317,17 @@ window.TOWN2X = /*JSON*/
    "status": "locked"
   },
   {
-   "id": "tower",
-   "label": "Tower",
-   "kind": "building",
-   "district": "working",
-   "img": "assets/town2x/tower_r16c.png",
-   "w": 467,
-   "h": 837,
-   "x": 797,
-   "y": 1763,
-   "door": {
-    "x": 204,
-    "y": 727,
-    "w": 60,
-    "h": 110
-   },
-   "status": "locked"
+   "id": "teleport",
+   "label": "Teleport base (placeholder)",
+   "kind": "lot",
+   "district": "teleport",
+   "img": null,
+   "w": 640,
+   "h": 640,
+   "x": 3520,
+   "y": 812,
+   "status": "lot",
+   "ref": "original town/index.html Summon Hill: plateau x412-480 of 480 (right edge), y134-216 of 320, just right of the pub (x320-404)"
   },
   {
    "id": "library",
@@ -339,8 +337,8 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/library_r17e.png",
    "w": 473,
    "h": 355,
-   "x": 3296,
-   "y": 1017,
+   "x": 2208,
+   "y": 1404,
    "door": {
     "x": 206,
     "y": 210,
@@ -353,22 +351,22 @@ window.TOWN2X = /*JSON*/
    "status": "stand-in-r17e"
   },
   {
-   "id": "hall",
-   "label": "Hall",
+   "id": "tower",
+   "label": "Tower",
    "kind": "building",
-   "district": "civic",
-   "img": "assets/town2x/hall_r16d.png",
-   "w": 883,
-   "h": 588,
-   "x": 1479,
-   "y": 96,
+   "district": "working",
+   "img": "assets/town2x/tower_r16c.png",
+   "w": 467,
+   "h": 837,
+   "x": 640,
+   "y": 1702,
    "door": {
-    "x": 412,
-    "y": 478,
+    "x": 204,
+    "y": 727,
     "w": 60,
     "h": 110
    },
-   "status": "accepted-candidate"
+   "status": "locked"
   },
   {
    "id": "lab",
@@ -378,8 +376,8 @@ window.TOWN2X = /*JSON*/
    "img": "assets/town2x/lab_r16b.png",
    "w": 434,
    "h": 332,
-   "x": 1392,
-   "y": 2268,
+   "x": 1440,
+   "y": 2207,
    "door": {
     "x": 187,
     "y": 222,
@@ -396,8 +394,8 @@ window.TOWN2X = /*JSON*/
    "img": null,
    "w": 480,
    "h": 360,
-   "x": 1954,
-   "y": 2240,
+   "x": 2272,
+   "y": 2179,
    "door": {
     "x": 210,
     "y": 250,
@@ -407,25 +405,37 @@ window.TOWN2X = /*JSON*/
    "status": "placeholder"
   },
   {
-   "id": "park",
-   "label": "Park (returns from the old layout)",
+   "id": "spare_w1",
+   "label": "Spare lot (working)",
    "kind": "lot",
-   "status": "park",
+   "district": "working",
    "img": null,
-   "w": 640,
-   "h": 560,
-   "x": 2528,
-   "y": 812,
-   "district": "park"
+   "w": 480,
+   "h": 360,
+   "x": 2848,
+   "y": 2179,
+   "status": "lot"
   }
  ],
  "viewport": {
-  "x": 640,
+  "x": 512,
   "y": 0,
-  "w": 2560,
-  "h": 1440,
-  "assumption": "1920x1080 screen, camera zoom 0.75 -> 2560x1440 world px"
- }
+  "w": 3200,
+  "h": 1800,
+  "zoom": 0.6,
+  "assumption": "1920x1080 screen, camera zoom 0.6 -> 3200x1800 world px"
+ },
+ "reserve": [
+  {
+   "id": "future_houses",
+   "label": "Room for 2 more houses",
+   "district": "residential",
+   "x": 1114,
+   "y": 112,
+   "w": 429,
+   "h": 822
+  }
+ ]
 }
 /*END*/;
 if (typeof module !== 'undefined') module.exports = window.TOWN2X;
