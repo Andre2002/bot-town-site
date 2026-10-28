@@ -8,6 +8,7 @@
 function drawNative(im, x, y, w, h) { g.drawImage(im, Math.round(x + w / 2 - im.naturalWidth / 2), y + h - im.naturalHeight); }</script>
 <script src="assets.js"></script>
 <script src="interiors.js"></script>
+<script src="walkers.js"></script>
 <script>
 const T = window.TOWN2X, W = T.canvas.w, H = T.canvas.h, SP = T.SPRITE, B = T.buildings;
 const q = new URLSearchParams(location.search);
@@ -131,6 +132,7 @@ function draw(spr) {
   }
   for (const a of PROPS) ents.push({ id: a.id, rank: 1, y: a.sortY, draw: () => drawProp(a) });
   if (spr && !window.__inRoom) ents.push({ id: 'figure', rank: 2, y: spr.y, draw: () => drawSprite(spr) });
+  if (WALKERS) for (const w of window.WALK2X.S.walkers) if (!w.inside) ents.push({ id: 'walker' + w.id, rank: 2, y: w.y, draw: () => drawWalker(w) });
   // Y-depth: the lower the base line (bigger y), the later it is drawn. Ties: building, then prop, then the figure in front.
   ents.sort((p, q) => p.y - q.y || p.rank - q.rank);
   window.__drawOrder = ents.map(e => e.id);
@@ -163,6 +165,19 @@ function drawProp(a) {
     label(s, f.x + Math.max(2, (f.w - g.measureText(s).width) / 2), f.y + Math.max(4, (f.h - k.h) / 2 - sz / 2), sz);
   }
   if (DEBUG) { window.__overlay[a.id] = true; g.strokeStyle = '#0f0'; g.lineWidth = 2; g.strokeRect(k.x + 1, k.y + 1, k.w - 2, k.h - 2); g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(f.x + .5, f.y + .5, f.w - 1, f.h - 1); }
+}
+// ?walkers=N: N tile walkers (walkers.js); &manual=1 leaves the clock to the caller (tools/checks/walk2x.py): WALK2X.run(ticks), window.__render()
+const WALKERS = +(q.get('walkers') || 0), WCOL = ['#e2572b', '#2b8be2', '#3cb44b', '#e2c22b', '#9b59b6', '#e67e22', '#1abc9c', '#e84393', '#7f8c8d', '#c0392b', '#2c3e50', '#16a085', '#d35400', '#8e44ad', '#27ae60', '#f39c12', '#34495e', '#ff6f61', '#6c5ce7', '#00b894'];
+function drawWalker(w) {   // the placeholder figure: 48x98, feet at (x, y); legs show the walk frame (0 left forward, 1 together, 2 right forward)
+  const x = Math.round(w.x), y = Math.round(w.y), top = y - SP.h;
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(x, y, 24, 6, 0, 0, 7); g.fill();
+  g.fillStyle = WCOL[(w.id - 1) % WCOL.length]; g.strokeStyle = '#111'; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(x - 24, top, SP.w, SP.h - 22, 20); g.fill(); g.stroke();
+  const f = w.frame, lo = f === 0 ? -6 : f === 2 ? 6 : 0;
+  g.fillStyle = '#222'; g.fillRect(x - 16 + (lo < 0 ? -4 : 0), y - 24, 12, 24 - (lo > 0 ? 4 : 0)); g.fillRect(x + 4 + (lo > 0 ? 4 : 0), y - 24, 12, 24 - (lo < 0 ? 4 : 0));
+  const ex = { left: -8, right: 8, up: 0, down: 0 }[w.dir] || 0;
+  if (w.dir !== 'up') { g.fillStyle = '#fff'; g.fillRect(x - 10 + ex, top + 22, 6, 6); g.fillRect(x + 4 + ex, top + 22, 6, 6); }
+  label(String(w.id), x - 8, top - 22, 18);
 }
 function drawSprite(spr) {
   g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(spr.x, spr.y, 24, 6, 0, 0, 7); g.fill();
@@ -296,6 +311,11 @@ function start() {
     const path = bfs(T.spawn, door(target(walk))); let i = 0; spr = { ...T.spawn };
     window.walkPath = path;
     (function step() { if (i < path.length) { spr = path[i]; i += 2; draw(spr); requestAnimationFrame(step); } })();
+  }
+  if (WALKERS) {
+    window.WALK2X.spawn(WALKERS); window.__render = () => draw(null);
+    if (q.get('manual') !== '1') { let acc = 0, last = performance.now(); (function loop(now) { acc += Math.min(250, now - last); last = now; while (acc >= 1000 / 60) { window.WALK2X.tick(); acc -= 1000 / 60; } draw(null); requestAnimationFrame(loop); })(last); }
+    draw(null); ready(); return;
   }
   draw(spr); if (PLAY) initGame(); ready();
 }
