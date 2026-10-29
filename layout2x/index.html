@@ -9,6 +9,7 @@ function drawNative(im, x, y, w, h) { g.drawImage(im, Math.round(x + w / 2 - im.
 <script src="assets.js"></script>
 <script src="interiors.js"></script>
 <script src="walkers.js"></script>
+<script src="status.js"></script>
 <script>
 const T = window.TOWN2X, W = T.canvas.w, H = T.canvas.h, SP = T.SPRITE, B = T.buildings;
 const q = new URLSearchParams(location.search);
@@ -132,6 +133,7 @@ function draw(spr) {
   }
   for (const a of PROPS) ents.push({ id: a.id, rank: 1, y: a.sortY, draw: () => drawProp(a) });
   if (spr && !window.__inRoom) ents.push({ id: 'figure', rank: 2, y: spr.y, draw: () => drawSprite(spr) });
+  if (STATUS) STATUS.boxes = []; if (STATUS) for (const s of STATUS.shown()) ents.push({ id: 'bot:' + s.id, rank: 2, y: s.y, draw: () => drawBot(s) });
   if (WALKERS) for (const w of window.WALK2X.S.walkers) if (!w.inside) ents.push({ id: 'walker' + w.id, rank: 2, y: w.y, draw: () => drawWalker(w) });
   // Y-depth: the lower the base line (bigger y), the later it is drawn. Ties: building, then prop, then the figure in front.
   ents.sort((p, q) => p.y - q.y || p.rank - q.rank);
@@ -165,6 +167,45 @@ function drawProp(a) {
     label(s, f.x + Math.max(2, (f.w - g.measureText(s).width) / 2), f.y + Math.max(4, (f.h - k.h) / 2 - sz / 2), sz);
   }
   if (DEBUG) { window.__overlay[a.id] = true; g.strokeStyle = '#0f0'; g.lineWidth = 2; g.strokeRect(k.x + 1, k.y + 1, k.w - 2, k.h - 2); g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(f.x + .5, f.y + .5, f.w - 1, f.h - 1); }
+}
+// ?status=1: live bot status A1 (status.js): the 14 roster bots stand in a line on the square with their state ring
+// (working green, idle grey, sleeping purple). Clock: ?clock=HH:MM (PT) or the live PT clock; the dev slider sets it.
+// Mock feed only (status.mock.json); no movement yet (A2).
+const STATUS = q.get('status') === '1' ? (() => {
+  const BS = window.BOT_STATUS, load = f => { const x = new XMLHttpRequest(); x.open('GET', f, false); x.send(); return JSON.parse(x.responseText); };
+  const roster = load('roster.json'), src = BS.mockSource(load('status.mock.json'));
+  let fixed = BS.parseClock(q.get('clock'));
+  const clock = () => fixed != null ? fixed : BS.ptMinutes(new Date());
+  // two rows of 7 on the square, clear of the lamps, the bench and the title; name chips stagger on 2 levels so neighbours never touch
+  const ROWS = [{ y: SQ.y + 332, x0: SQ.x + 137, x1: SQ.x + 791 }, { y: SQ.y + SQ.h - 30, x0: SQ.x + 137, x1: SQ.x + 620 }], PER = Math.ceil(roster.bots.length / ROWS.length);
+  const place = i => { const r = ROWS[Math.floor(i / PER)], k = i % PER; return { x: Math.round(r.x0 + k * (r.x1 - r.x0) / (PER - 1)), y: r.y, lvl: k % 2 }; };
+  const S = { roster, src, clock, setClock(m) { fixed = m; window.__render && window.__render(); },
+    model: () => BS.model(roster, src.getStatuses(), clock()),
+    now: () => (q.get('t') != null ? +q.get('t') : performance.now()),   // ?t=<ms> freezes the glow pulse phase (proof shots)
+    shown: () => S.model().map((b, i) => Object.assign(b, place(i))), boxes: [] };
+  const ui = document.createElement('div');
+  ui.id = 'legend'; ui.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9;background:#1c1c1c;border:1px solid #555;color:#fff;font:14px sans-serif;padding:6px 10px;border-radius:6px';
+  ui.innerHTML = Object.entries(BS.RING).map(([k, c]) => `<span style="display:inline-block;width:14px;height:14px;border-radius:7px;background:${c};border:2px solid #fff;vertical-align:middle"></span> ${k} `).join('') + ' &nbsp; dev clock (PT) <input id="clk" type="range" min="0" max="1439" step="15" style="vertical-align:middle;width:220px"> <b id="clkv"></b>';
+  document.body.appendChild(ui);
+  const r = ui.querySelector('#clk'), v = ui.querySelector('#clkv'); r.value = clock(); v.textContent = BS.fmtClock(clock());
+  r.oninput = () => { v.textContent = BS.fmtClock(+r.value); S.setClock(+r.value); };
+  const tip = document.createElement('div'); tip.style.cssText = 'position:fixed;z-index:9;display:none;background:rgba(0,0,0,.85);color:#fff;font:14px sans-serif;padding:4px 8px;border-radius:4px;pointer-events:none'; document.body.appendChild(tip);
+  const hit = e => { const c = g.canvas.getBoundingClientRect(), k = g.canvas.width / c.width, px = (e.clientX - c.left) * k, py = (e.clientY - c.top) * k;
+    const b = S.boxes.find(b => (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) || (Math.abs(px - b.fx) <= 28 && py >= b.fy - 98 && py <= b.fy + 9));
+    if (!b) { tip.style.display = 'none'; return; } tip.textContent = `${b.name}: ${b.state}${b.task ? ' (' + b.task + ')' : ''}`; tip.style.left = e.clientX + 12 + 'px'; tip.style.top = e.clientY + 12 + 'px'; tip.style.display = 'block'; };
+  addEventListener('mousemove', hit); addEventListener('pointerdown', hit);   // hover, or tap on touch screens
+  window.__status = S; return S;
+})() : null;
+function drawBot(s) {   // placeholder figure (48x98, feet at x,y), the state ring under the feet, name and state above
+  const x = s.x, y = s.y, top = y - SP.h;
+  g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(x, y, 24, 6, 0, 0, 7); g.fill();
+  window.BOT_STATUS.drawGlow(g, x, y, s.state, STATUS.now());   // over the shadow, under the feet
+  g.fillStyle = '#f4efe2'; g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.roundRect(x - 24, top, SP.w, SP.h - 22, 20); g.fill(); g.stroke();
+  g.fillStyle = '#222'; g.fillRect(x - 16, y - 24, 12, 24); g.fillRect(x + 4, y - 24, 12, 24);
+  g.fillStyle = s.state === 'sleeping' ? '#555' : '#111'; if (s.state === 'sleeping') { g.fillRect(x - 11, top + 26, 8, 2); g.fillRect(x + 3, top + 26, 8, 2); } else { g.fillRect(x - 10, top + 22, 6, 6); g.fillRect(x + 4, top + 22, 6, 6); }
+  const F = 28, n = s.name; g.font = `bold ${F}px sans-serif`; const w = g.measureText(n).width + 8, h = F + 4, cy = top - 6 - h - s.lvl * (h + 4);   // name label only; 28px world = 11.2px at the 1280-wide full-town view
+  label(n, x - w / 2 + 4, cy + 2, F);
+  STATUS.boxes.push({ id: s.id, name: n, state: s.state, task: s.task, x: x - w / 2, y: cy, w, h, bot: y + 9, fx: x, fy: y, gx: x - 28, gy: y - 8, gw: 56, gh: 16 });
 }
 // ?walkers=N: N tile walkers (walkers.js); &manual=1 leaves the clock to the caller (tools/checks/walk2x.py): WALK2X.run(ticks), window.__render()
 const WALKERS = +(q.get('walkers') || 0), WCOL = ['#e2572b', '#2b8be2', '#3cb44b', '#e2c22b', '#9b59b6', '#e67e22', '#1abc9c', '#e84393', '#7f8c8d', '#c0392b', '#2c3e50', '#16a085', '#d35400', '#8e44ad', '#27ae60', '#f39c12', '#34495e', '#ff6f61', '#6c5ce7', '#00b894'];
@@ -317,7 +358,9 @@ function start() {
     if (q.get('manual') !== '1') { let acc = 0, last = performance.now(); (function loop(now) { acc += Math.min(250, now - last); last = now; while (acc >= 1000 / 60) { window.WALK2X.tick(); acc -= 1000 / 60; } draw(null); requestAnimationFrame(loop); })(last); }
     draw(null); ready(); return;
   }
-  draw(spr); if (PLAY) initGame(); ready();
+  if (STATUS) { window.__render = () => draw(null);
+    if (q.get('t') == null) setInterval(() => { if (STATUS.model().some(b => b.state === 'working')) draw(null); }, 100); }   // the working pulse: ~10 fps redraw
+  draw(STATUS ? null : spr); if (PLAY) initGame(); ready();
 }
 for (const a of window.TOWN_ASSETS.assets) {
   a.im = new Image(); a.im.onload = a.im.onerror = () => { if (--left === 0) start(); }; a.im.src = '../' + a.png;

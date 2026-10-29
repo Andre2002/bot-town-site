@@ -1,0 +1,19 @@
+{
+  "_doc": "Live bots and where they go (live status plan rev 3, approved by Andre 2026-10-29). shop = building id they work at, house = building id they sleep in. guess: the plan marks these with a flag (to confirm). spare_w1 is the proposed design shop; tbd is the proposed market/bank lot.",
+  "bots": [
+    { "id": "vega",    "name": "Vega",    "role": "CTO",             "shop": "lab",       "house": "oak",   "guess": ["shop", "house"] },
+    { "id": "vibes",   "name": "Vibes",   "role": "?",               "shop": "workshop",  "house": "oak",   "guess": ["shop", "house", "role"] },
+    { "id": "pixel",   "name": "Pixel",   "role": "UI design",       "shop": "spare_w1",  "house": "ivy",   "guess": ["house"] },
+    { "id": "motion",  "name": "Motion",  "role": "motion design",   "shop": "spare_w1",  "house": "ivy",   "guess": ["house"] },
+    { "id": "frame",   "name": "Frame",   "role": "image gen",       "shop": "spare_w1",  "house": "ivy",   "guess": ["shop", "house"] },
+    { "id": "jenny",   "name": "Jenny",   "role": "QA",              "shop": "lab",       "house": "oak",   "guess": ["shop", "house"] },
+    { "id": "scout",   "name": "Scout",   "role": "research",        "shop": "mage_shop", "house": "birch", "guess": ["house"] },
+    { "id": "coos",    "name": "Coos",    "role": "content",         "shop": "library",   "house": "birch", "guess": ["shop", "house"] },
+    { "id": "chronos", "name": "Chronos", "role": "chief of staff",  "shop": "hall",      "house": "birch", "guess": ["house"] },
+    { "id": "lloyd",   "name": "Lloyd",   "role": "marketing",       "shop": "tbd",       "house": "fern",  "guess": ["shop", "house"], "shopNote": "market (tbd lot)" },
+    { "id": "gild",    "name": "Gild",    "role": "finance",         "shop": "tbd",       "house": "fern",  "guess": ["shop", "house"], "shopNote": "bank (tbd lot), else hall", "shopElse": "hall" },
+    { "id": "wire",    "name": "Wire",    "role": "webhooks",        "shop": "workshop",  "house": "fern",  "guess": ["shop", "house"] },
+    { "id": "janitor", "name": "Janitor", "role": "cleanup",         "shop": "workshop",  "house": "fern",  "guess": ["shop", "house"], "shopNote": "or roams streets" },
+    { "id": "dubot",   "name": "Dubot",   "role": "bot creator",     "shop": "teleport",  "house": "oak",   "guess": ["shop", "house"], "shopNote": "teleport / Summon Hill" }
+  ]
+}

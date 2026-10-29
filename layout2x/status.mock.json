@@ -1,0 +1,19 @@
+{
+  "_doc": "Mock status feed for live status phase A (no real data). Shape of B's getStatuses(): [{id, state, task, since}]. state is 'working' or 'idle'; sleep is clock-only (a feed 'sleeping' is treated as idle); since is ISO time. The clock turns idle into sleeping 12am-7am PT.",
+  "statuses": [
+    { "id": "vega",    "state": "working",  "task": "review PR #146",       "since": "2026-10-29T16:02:00Z" },
+    { "id": "vibes",   "state": "working",  "task": "live status A1",       "since": "2026-10-29T22:10:00Z" },
+    { "id": "pixel",   "state": "idle",     "task": null,                   "since": "2026-10-29T20:40:00Z" },
+    { "id": "motion",  "state": "working",  "task": "walk cycle clip",      "since": "2026-10-29T21:05:00Z" },
+    { "id": "frame",   "state": "idle",     "task": null,                   "since": "2026-10-29T19:00:00Z" },
+    { "id": "jenny",   "state": "working",  "task": "QA walkers",           "since": "2026-10-29T21:30:00Z" },
+    { "id": "scout",   "state": "idle",     "task": null,                   "since": "2026-10-29T18:15:00Z" },
+    { "id": "coos",    "state": "idle",     "task": null,                   "since": "2026-10-29T17:00:00Z" },
+    { "id": "chronos", "state": "working",  "task": "daily digest",         "since": "2026-10-29T22:00:00Z" },
+    { "id": "lloyd",   "state": "idle",     "task": null,                   "since": "2026-10-29T20:00:00Z" },
+    { "id": "gild",    "state": "idle",     "task": null,                   "since": "2026-10-29T16:30:00Z" },
+    { "id": "wire",    "state": "working",  "task": "webhook retries",      "since": "2026-10-29T22:12:00Z" },
+    { "id": "janitor", "state": "idle",     "task": null,                   "since": "2026-10-29T15:00:00Z" },
+    { "id": "dubot",   "state": "idle",     "task": null,                   "since": "2026-10-29T21:50:00Z" }
+  ]
+}
