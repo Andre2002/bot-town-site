@@ -12,6 +12,7 @@ function drawNative(im, x, y, w, h) { g.drawImage(im, Math.round(x + w / 2 - im.
 <script src="status.js"></script>
 <script src="spots.js"></script>
 <script src="labels.js"></script>
+<script src="board.js"></script>
 <script>
 const T = window.TOWN2X, W = T.canvas.w, H = T.canvas.h, SP = T.SPRITE, B = T.buildings;
 const q = new URLSearchParams(location.search);
@@ -133,7 +134,8 @@ function draw(spr) {
     else placeholder(a);
     if (b.slot && DEBUG) { g.setLineDash([14, 10]); g.strokeStyle = '#00e5ff'; g.lineWidth = 3; g.strokeRect(b.x + b.slot.x, b.y + b.slot.y, b.slot.w, b.slot.h); g.setLineDash([]); }
   }
-  for (const a of PROPS) ents.push({ id: a.id, rank: 1, y: a.sortY, draw: () => drawProp(a) });
+  if (STATUS) { const BB = window.BOT_BOARD; ents.push({ id: 'taskboard', rank: 1, y: BB.RECT.y + BB.RECT.h, draw: () => BB.draw(g, STATUS.board, window.WALK2X.S.t, STATUS.boardArt) }); }
+  for (const a of PROPS) if (!(STATUS && a.id === 'board_spot')) ents.push({ id: a.id, rank: 1, y: a.sortY, draw: () => drawProp(a) });
   if (spr && !window.__inRoom) ents.push({ id: 'figure', rank: 2, y: spr.y, draw: () => drawSprite(spr) });
   if (STATUS) STATUS.boxes = []; if (STATUS) for (const s of STATUS.shown()) ents.push({ id: 'bot:' + s.id, rank: 2, y: s.y, draw: () => drawBot(s) });
   if (WALKERS) for (const w of window.WALK2X.S.walkers) if (!w.inside && !w.bot) ents.push({ id: 'walker' + w.id, rank: 2, y: w.y, draw: () => drawWalker(w) });
@@ -181,12 +183,12 @@ const STATUS = q.get('status') === '1' ? (() => {
   const clock = () => fixed != null ? fixed : BS.ptMinutes(new Date());
   // where each bot is: its live walker (A2); bots indoors (asleep, at the pub, library or hall) are hidden. Name labels go
   // where they cover no other bot (labels.js: above, stacked up to 3 levels, then beside the head, shrinking 28 -> 22 -> 18px)
-  const place = list => window.BOT_LABELS.place(list, (n, F) => { g.font = `bold ${F}px sans-serif`; return g.measureText(n).width; });
+  const place = list => window.BOT_LABELS.place(list, (n, F) => { g.font = `bold ${F}px sans-serif`; return g.measureText(n).width; }, { w: W, h: H });
   const S = { roster, src, clock, setClock(m) { fixed = m; window.__render && window.__render(); },
     model: () => BS.model(roster, src.getStatuses(), clock()),
     now: () => (q.get('t') != null ? +q.get('t') : performance.now()),   // ?t=<ms> freezes the glow pulse phase (proof shots)
     shown: () => { const L = S.live; if (!L) return []; const m = S.model();
-      return place(L.bots.filter(w => !w.inside).map(w => Object.assign(m.find(b => b.id === w.bot.id), { x: Math.round(w.x), y: Math.round(w.y) }))); }, boxes: [] };
+      return place(L.bots.filter(w => !w.inside).map(w => Object.assign(m.find(b => b.id === w.bot.id), { x: Math.round(w.x), y: Math.round(w.y), check: w.check }))); }, boxes: [] };
   const ui = document.createElement('div');
   ui.id = 'legend'; ui.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9;background:#1c1c1c;border:1px solid #555;color:#fff;font:14px sans-serif;padding:6px 10px;border-radius:6px';
   ui.innerHTML = Object.entries(BS.RING).map(([k, c]) => `<span style="display:inline-block;width:14px;height:14px;border-radius:7px;background:${c};border:2px solid #fff;vertical-align:middle"></span> ${k} `).join('') + ' &nbsp; dev clock (PT) <input id="clk" type="range" min="0" max="1439" step="15" style="vertical-align:middle;width:220px"> <b id="clkv"></b>';
@@ -200,6 +202,11 @@ const STATUS = q.get('status') === '1' ? (() => {
   addEventListener('mousemove', hit); addEventListener('pointerdown', hit);   // hover, or tap on touch screens
   window.__status = S; return S;
 })() : null;
+// A3 check mark (task finished, or a short task): a simple glyph drawn in code, a placeholder until A4 brings the bubble art
+function drawCheck(x, y, a) {
+  g.save(); g.globalAlpha = a; g.fillStyle = '#2e9e4f'; g.strokeStyle = '#fff'; g.lineWidth = 3; g.beginPath(); g.arc(x + 14, y, 14, 0, 7); g.fill(); g.stroke();
+  g.lineWidth = 4; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(x + 7, y + 1); g.lineTo(x + 12, y + 6); g.lineTo(x + 21, y - 6); g.stroke(); g.restore();
+}
 function drawBot(s) {   // placeholder figure (48x98, feet at x,y), the state ring under the feet, name and state above
   const x = s.x, y = s.y, top = y - SP.h;
   g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(x, y, 24, 6, 0, 0, 7); g.fill();
@@ -207,6 +214,7 @@ function drawBot(s) {   // placeholder figure (48x98, feet at x,y), the state ri
   g.fillStyle = '#f4efe2'; g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.roundRect(x - 24, top, SP.w, SP.h - 22, 20); g.fill(); g.stroke();
   g.fillStyle = '#222'; g.fillRect(x - 16, y - 24, 12, 24); g.fillRect(x + 4, y - 24, 12, 24);
   g.fillStyle = s.state === 'sleeping' ? '#555' : '#111'; if (s.state === 'sleeping') { g.fillRect(x - 11, top + 26, 8, 2); g.fillRect(x + 3, top + 26, 8, 2); } else { g.fillRect(x - 10, top + 22, 6, 6); g.fillRect(x + 4, top + 22, 6, 6); }
+  if (s.check != null) { const k = window.WALK2X.S.t - s.check; if (k >= 0 && k < window.BOT_SPOTS.CHECK_S) drawCheck(x + 30, top + 4, Math.min(1, (window.BOT_SPOTS.CHECK_S - k) / 0.5)); }
   const L = s.lab, n = s.name, w = L.w, h = L.h, cy = L.y;   // name label only, placed by labels.js; 28px world = 11.2px at the 1280-wide full-town view
   label(n, L.x + 4, cy + 2, L.F);
   STATUS.boxes.push({ id: s.id, name: n, state: s.state, task: s.task, x: L.x, y: cy, w, h, bot: y + 9, fx: x, fy: y, gx: x - 28, gy: y - 8, gw: 56, gh: 16 });
@@ -358,7 +366,10 @@ function start() {
     (function step() { if (i < path.length) { spr = path[i]; i += 2; draw(spr); requestAnimationFrame(step); } })();
   }
   if (STATUS) {   // A2: live bots on the walker graph, villagers too with &walkers=N
-    const WK = window.WALK2X, L = window.BOT_SPOTS.install(WK, T, window.TOWN_ASSETS.assets, { clock: STATUS.clock, model: STATUS.model });
+    const WK = window.WALK2X, BB = window.BOT_BOARD;   // A3: the task board replaces the board_spot prop (hidden above); board art loads async
+    STATUS.board = BB.create(); const ld = f => { const i = new Image(); i.onload = () => window.__render && window.__render(); i.src = '../' + f; return i; };
+    STATUS.boardArt = { board: ld(BB.ART + 'board_r17b.png'), notes: BB.NOTES.map(ld) };
+    const L = window.BOT_SPOTS.install(WK, T, window.TOWN_ASSETS.assets, { clock: STATUS.clock, model: STATUS.model, board: STATUS.board });
     if (WALKERS) WK.spawn(WALKERS);
     const free = WK.roadNodes.filter(n => WK.S.owner[n.id] == null);
     STATUS.roster.bots.forEach((b, i) => L.settle(L.add(b, free[(i * 23) % free.length].id, 101 + i)));   // the town opens settled

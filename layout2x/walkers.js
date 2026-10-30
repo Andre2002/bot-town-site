@@ -112,8 +112,10 @@
       let bi = 0; for (let i = 1; i < open.length; i++) if (F[open[i]] < F[open[bi]]) bi = i;
       const u = open.splice(bi, 1)[0]; if (u === goal) break; if (done[u]) continue; done[u] = 1;
       for (const e of N[u].edges) {
-        const v = N[e.to]; if (!v.road && e.to !== goal) continue;          // off-road only as the final approach
-        if (!N[u].road && u !== from) continue;
+        // off-road only as the final approach; ?status=1 only: a walk-up waypoint counts as part of its approach, and a bot can walk
+        // back out along the board queue line (wq nodes)
+        const v = N[e.to]; if (!v.road && e.to !== goal && !(v.wp && (v.wpOf === goal || v.wpOf === u || N[u].wpOf === v.wpOf)) && !(v.wq && (N[u].wq || v.roadNode === u))) continue;
+        if (!N[u].road && u !== from && !N[u].wp && !N[u].wq) continue;
         if (blockedBy[e.to] && e.to !== goal) continue;
         const g = G[u] + e.cost; if (G[e.to] == null || g < G[e.to]) { G[e.to] = g; P[e.to] = u; F[e.to] = g + h(e.to); open.push(e.to); }
       }
@@ -173,11 +175,21 @@
   function zoneFree(w, zone) { return zone.every(id => free(id, w) && !(leaverOf(id) && leaverOf(id) !== w)); }
   function claimZone(w, zone) { for (const id of zone) S.owner[id] = w.id; w.zone = zone; }
   function dropZone(w, keep) { for (const id of w.zone || []) if (id !== keep && S.owner[id] === w.id) delete S.owner[id]; w.zone = null; }
+  // ?status=1 only (S.offClear): an off-road leg is not a lane tile, so nobody owns the ground it sweeps; a step starts only
+  // when its swept boxes stay clear of every other visible walker's body and remaining step, and a step waits while another
+  // walker's off-road leg in progress sweeps over it (walkers standing on their own spots are clear by layout, see the tests)
+  function offClear(w, next) {
+    const others = S.walkers.filter(o => o !== w && !o.inside && (o.moving || N[o.at].road));
+    const sweep = (p, q) => { const r = []; const n = Math.max(1, Math.ceil(Math.hypot(q.x - p.x, q.y - p.y) / 2)); for (let i = 0; i <= n; i++) r.push(footBox(p.x + (q.x - p.x) * i / n, p.y + (q.y - p.y) * i / n)); return r; };
+    const hitAny = (bs, B) => bs.some(b => ovl(b, B)), mine = sweep(N[w.at], N[next]).slice(1), rest = o => sweep({ x: o.x, y: o.y }, N[o.at]);
+    if (!N[next].road || !N[w.at].road) { if (others.some(o => hitAny(mine, footBox(o.x, o.y)) || (o.moving && rest(o).some(b => hitAny(mine, b))))) return false; }
+    return !others.some(o => o.moving && o.offStep && rest(o).some(b => hitAny(mine, b)));
+  }
   function sidestep(w, claimed, prefer) {
     const here = N[w.at], nx = w.path[0] ? N[w.path[0]] : null;
     const hx = nx ? Math.sign(Math.round(nx.x - here.x)) : 0, hy = nx ? Math.sign(Math.round(nx.y - here.y)) : 0;
     const right = [-hy, hx];
-    const cands = here.edges.map(e => N[e.to]).filter(n => n.road && free(n.id, w) && !claimed.has(n.id) && !leaverOf(n.id) && n.id !== (nx && nx.id) && !(isBox(n.id) && !isBox(w.at)))
+    const cands = here.edges.map(e => N[e.to]).filter(n => n.road && free(n.id, w) && !claimed.has(n.id) && !leaverOf(n.id) && (!S.offClear || offClear(w, n.id)) && n.id !== (nx && nx.id) && !(isBox(n.id) && !isBox(w.at)))
       .map(n => { const dx = Math.sign(Math.round(n.x - here.x)), dy = Math.sign(Math.round(n.y - here.y)); return { n, perp: dx * hx + dy * hy === 0, right: dx === right[0] && dy === right[1] }; })
       .filter(c => (c.perp || prefer === 'any') && (prefer !== 'right' || c.right)).sort((p, q) => (q.perp - p.perp) || (q.right - p.right));
     if (!cands.length) return false;
@@ -257,6 +269,11 @@
         if (ok && dIn) { const zone = DOORS[N[dIn].door].zone; if (zoneFree(w, zone) && !zone.some(id => claimed.has(id) && S.owner[id] !== w.id)) { claimZone(w, zone); zone.forEach(id => claimed.add(id)); } else ok = false; }
       }
       if (ok && isApproach) { const zone = DOORS[dn.door].zone; ok = zoneFree(w, zone) && !zone.some(id => claimed.has(id) && S.owner[id] !== w.id); if (ok) { claimZone(w, zone); if (S.zoneWant[dn.door] === w.id) delete S.zoneWant[dn.door]; } else if (free(next, w) && !claimed.has(next)) { if (!w.blk) w.blk = { t0: S.t, fails: 0, replanned: false }; w.blk.zone = dn.door; if (S.zoneWant[dn.door] == null || !S.walkers.some(q => q.id === S.zoneWant[dn.door] && q.blk && q.blk.zone === dn.door && !q.moving)) S.zoneWant[dn.door] = w.id; } }
+      // ?status=1 only (S.offClear): an off-road leg is not a lane tile, so nobody owns the ground it sweeps; a step starts only
+      // when its swept boxes stay clear of every other visible walker's body and of the next tile of any walker mid-step, and a
+      // step onto a tile waits while another walker's off-road leg in progress sweeps over that tile
+      if (ok && S.offClear && !offClear(w, next)) {   // only waits for bodies to pass: no first call on the tile, so the body in the way can move on
+        if (S.want[next] && S.want[next].id === w.id) delete S.want[next]; if (!w.blk) w.blk = { t0: S.t, fails: 0, replanned: false }; return; }
       if (ok && boxHold) { for (const id of boxHold) { S.owner[id] = w.id; claimed.add(id); } w.box = boxHold; }
       if (ok) { if (S.want[next] && S.want[next].id === w.id) delete S.want[next]; w.path.shift(); start(w, next, claimed); w.blk = null; w.follow0 = null; return; }
       if (claimed.has(next) && S.owner[next] !== w.id) { S.lostClaims++; if (w.blk) w.blk.t0 += 1 / HZ; return; }   // lost this tick's settle: not a timeout
