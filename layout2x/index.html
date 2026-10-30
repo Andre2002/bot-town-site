@@ -11,6 +11,7 @@ function drawNative(im, x, y, w, h) { g.drawImage(im, Math.round(x + w / 2 - im.
 <script src="walkers.js"></script>
 <script src="status.js"></script>
 <script src="spots.js"></script>
+<script src="labels.js"></script>
 <script>
 const T = window.TOWN2X, W = T.canvas.w, H = T.canvas.h, SP = T.SPRITE, B = T.buildings;
 const q = new URLSearchParams(location.search);
@@ -178,13 +179,9 @@ const STATUS = q.get('status') === '1' ? (() => {
   const roster = load('roster.json'), src = BS.mockSource(load('status.mock.json'));
   let fixed = BS.parseClock(q.get('clock'));
   const clock = () => fixed != null ? fixed : BS.ptMinutes(new Date());
-  // where each bot is: its live walker (A2); bots indoors (asleep, at the pub, library or hall) are hidden. Name labels stack on up
-  // to 3 levels so labels of bots standing close never touch
-  const place = list => { const out = [], F = 28, lw = n => { g.font = `bold ${F}px sans-serif`; return g.measureText(n).width + 8; };
-    for (const b of list.sort((p, q) => p.x - q.x)) { let lvl = 0; const w = lw(b.name);
-      while (lvl < 2 && out.some(o => o.lvl === lvl && Math.abs(o.x - b.x) < (o.w + w) / 2 + 4 && Math.abs(o.y - b.y) < F + 8)) lvl++;
-      out.push(Object.assign(b, { lvl, w })); }
-    return out; };
+  // where each bot is: its live walker (A2); bots indoors (asleep, at the pub, library or hall) are hidden. Name labels go
+  // where they cover no other bot (labels.js: above, stacked up to 3 levels, then beside the head, shrinking 28 -> 22 -> 18px)
+  const place = list => window.BOT_LABELS.place(list, (n, F) => { g.font = `bold ${F}px sans-serif`; return g.measureText(n).width; });
   const S = { roster, src, clock, setClock(m) { fixed = m; window.__render && window.__render(); },
     model: () => BS.model(roster, src.getStatuses(), clock()),
     now: () => (q.get('t') != null ? +q.get('t') : performance.now()),   // ?t=<ms> freezes the glow pulse phase (proof shots)
@@ -210,9 +207,9 @@ function drawBot(s) {   // placeholder figure (48x98, feet at x,y), the state ri
   g.fillStyle = '#f4efe2'; g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.roundRect(x - 24, top, SP.w, SP.h - 22, 20); g.fill(); g.stroke();
   g.fillStyle = '#222'; g.fillRect(x - 16, y - 24, 12, 24); g.fillRect(x + 4, y - 24, 12, 24);
   g.fillStyle = s.state === 'sleeping' ? '#555' : '#111'; if (s.state === 'sleeping') { g.fillRect(x - 11, top + 26, 8, 2); g.fillRect(x + 3, top + 26, 8, 2); } else { g.fillRect(x - 10, top + 22, 6, 6); g.fillRect(x + 4, top + 22, 6, 6); }
-  const F = 28, n = s.name; g.font = `bold ${F}px sans-serif`; const w = g.measureText(n).width + 8, h = F + 4, cy = top - 6 - h - s.lvl * (h + 4);   // name label only; 28px world = 11.2px at the 1280-wide full-town view
-  label(n, x - w / 2 + 4, cy + 2, F);
-  STATUS.boxes.push({ id: s.id, name: n, state: s.state, task: s.task, x: x - w / 2, y: cy, w, h, bot: y + 9, fx: x, fy: y, gx: x - 28, gy: y - 8, gw: 56, gh: 16 });
+  const L = s.lab, n = s.name, w = L.w, h = L.h, cy = L.y;   // name label only, placed by labels.js; 28px world = 11.2px at the 1280-wide full-town view
+  label(n, L.x + 4, cy + 2, L.F);
+  STATUS.boxes.push({ id: s.id, name: n, state: s.state, task: s.task, x: L.x, y: cy, w, h, bot: y + 9, fx: x, fy: y, gx: x - 28, gy: y - 8, gw: 56, gh: 16 });
 }
 // ?walkers=N: N tile walkers (walkers.js); &manual=1 leaves the clock to the caller (tools/checks/walk2x.py): WALK2X.run(ticks), window.__render()
 const WALKERS = +(q.get('walkers') || 0), WCOL = ['#e2572b', '#2b8be2', '#3cb44b', '#e2c22b', '#9b59b6', '#e67e22', '#1abc9c', '#e84393', '#7f8c8d', '#c0392b', '#2c3e50', '#16a085', '#d35400', '#8e44ad', '#27ae60', '#f39c12', '#34495e', '#ff6f61', '#6c5ce7', '#00b894'];
