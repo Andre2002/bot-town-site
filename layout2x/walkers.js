@@ -136,7 +136,7 @@
     w.path = p || []; if (!p) lg(w, 'noroute', w.goal.node);
   }
   function setGoal(w, g) { if (w.zone && !w.inside && !w.moving && N[w.at].road) {   // never drop the zone while on the door approach
-    const keep = [w.at, w.from]; for (const id of w.zone) if (!keep.includes(id) && S.owner[id] === w.id) delete S.owner[id]; w.zone = null; } w.goal = g || pickGoal(w); w.blk = null; plan(w, true); }
+    const keep = [w.at, w.from]; for (const id of w.zone) if (!keep.includes(id) && S.owner[id] === w.id) delete S.owner[id]; w.zone = null; } w.goal = g || (w.brain && w.brain(w)) || pickGoal(w); w.blk = null; plan(w, true); }   // a live bot (spots.js, ?status=1) has a brain that picks its goal by state and clock
   function addWalker(id, at, pace, goal) {
     const n = N[at], w = { id, at, from: null, x: n.x, y: n.y, moving: false, released: false, prog: 0, len: 0, v: 0, pace, fpt: FPT[pace], phase: 0, frame: 'stand', dir: 'down', path: [], goal: null, blk: null, retryAt: 0, inside: false, until: 0, stats: { steps: 0 } };
     S.owner[at] = id; S.walkers.push(w); setGoal(w, goal); return w;

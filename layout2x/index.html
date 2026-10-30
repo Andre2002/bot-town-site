@@ -10,6 +10,7 @@ function drawNative(im, x, y, w, h) { g.drawImage(im, Math.round(x + w / 2 - im.
 <script src="interiors.js"></script>
 <script src="walkers.js"></script>
 <script src="status.js"></script>
+<script src="spots.js"></script>
 <script>
 const T = window.TOWN2X, W = T.canvas.w, H = T.canvas.h, SP = T.SPRITE, B = T.buildings;
 const q = new URLSearchParams(location.search);
@@ -134,7 +135,7 @@ function draw(spr) {
   for (const a of PROPS) ents.push({ id: a.id, rank: 1, y: a.sortY, draw: () => drawProp(a) });
   if (spr && !window.__inRoom) ents.push({ id: 'figure', rank: 2, y: spr.y, draw: () => drawSprite(spr) });
   if (STATUS) STATUS.boxes = []; if (STATUS) for (const s of STATUS.shown()) ents.push({ id: 'bot:' + s.id, rank: 2, y: s.y, draw: () => drawBot(s) });
-  if (WALKERS) for (const w of window.WALK2X.S.walkers) if (!w.inside) ents.push({ id: 'walker' + w.id, rank: 2, y: w.y, draw: () => drawWalker(w) });
+  if (WALKERS) for (const w of window.WALK2X.S.walkers) if (!w.inside && !w.bot) ents.push({ id: 'walker' + w.id, rank: 2, y: w.y, draw: () => drawWalker(w) });
   // Y-depth: the lower the base line (bigger y), the later it is drawn. Ties: building, then prop, then the figure in front.
   ents.sort((p, q) => p.y - q.y || p.rank - q.rank);
   window.__drawOrder = ents.map(e => e.id);
@@ -168,21 +169,27 @@ function drawProp(a) {
   }
   if (DEBUG) { window.__overlay[a.id] = true; g.strokeStyle = '#0f0'; g.lineWidth = 2; g.strokeRect(k.x + 1, k.y + 1, k.w - 2, k.h - 2); g.strokeStyle = '#ff0'; g.lineWidth = 1; g.strokeRect(f.x + .5, f.y + .5, f.w - 1, f.h - 1); }
 }
-// ?status=1: live bot status A1 (status.js): the 14 roster bots stand in a line on the square with their state ring
-// (working green, idle grey, sleeping purple). Clock: ?clock=HH:MM (PT) or the live PT clock; the dev slider sets it.
-// Mock feed only (status.mock.json); no movement yet (A2).
+// ?status=1: live bot status (status.js A1 + spots.js A2): the 14 roster bots walk the tile graph to where their state and the
+// PT clock send them (shop work tiles, idle spots, home to bed), with the ground glow (working green, idle grey, sleeping purple).
+// Clock: ?clock=HH:MM (PT) or the live PT clock; the dev slider sets it. Mock feed only (status.mock.json). &walkers=N adds villagers;
+// &manual=1 leaves the ticks to the caller (window.__live.run(seconds)).
 const STATUS = q.get('status') === '1' ? (() => {
   const BS = window.BOT_STATUS, load = f => { const x = new XMLHttpRequest(); x.open('GET', f, false); x.send(); return JSON.parse(x.responseText); };
   const roster = load('roster.json'), src = BS.mockSource(load('status.mock.json'));
   let fixed = BS.parseClock(q.get('clock'));
   const clock = () => fixed != null ? fixed : BS.ptMinutes(new Date());
-  // two rows of 7 on the square, clear of the lamps, the bench and the title; name chips stagger on 2 levels so neighbours never touch
-  const ROWS = [{ y: SQ.y + 332, x0: SQ.x + 137, x1: SQ.x + 791 }, { y: SQ.y + SQ.h - 30, x0: SQ.x + 137, x1: SQ.x + 620 }], PER = Math.ceil(roster.bots.length / ROWS.length);
-  const place = i => { const r = ROWS[Math.floor(i / PER)], k = i % PER; return { x: Math.round(r.x0 + k * (r.x1 - r.x0) / (PER - 1)), y: r.y, lvl: k % 2 }; };
+  // where each bot is: its live walker (A2); bots indoors (asleep, at the pub, library or hall) are hidden. Name labels stack on up
+  // to 3 levels so labels of bots standing close never touch
+  const place = list => { const out = [], F = 28, lw = n => { g.font = `bold ${F}px sans-serif`; return g.measureText(n).width + 8; };
+    for (const b of list.sort((p, q) => p.x - q.x)) { let lvl = 0; const w = lw(b.name);
+      while (lvl < 2 && out.some(o => o.lvl === lvl && Math.abs(o.x - b.x) < (o.w + w) / 2 + 4 && Math.abs(o.y - b.y) < F + 8)) lvl++;
+      out.push(Object.assign(b, { lvl, w })); }
+    return out; };
   const S = { roster, src, clock, setClock(m) { fixed = m; window.__render && window.__render(); },
     model: () => BS.model(roster, src.getStatuses(), clock()),
     now: () => (q.get('t') != null ? +q.get('t') : performance.now()),   // ?t=<ms> freezes the glow pulse phase (proof shots)
-    shown: () => S.model().map((b, i) => Object.assign(b, place(i))), boxes: [] };
+    shown: () => { const L = S.live; if (!L) return []; const m = S.model();
+      return place(L.bots.filter(w => !w.inside).map(w => Object.assign(m.find(b => b.id === w.bot.id), { x: Math.round(w.x), y: Math.round(w.y) }))); }, boxes: [] };
   const ui = document.createElement('div');
   ui.id = 'legend'; ui.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9;background:#1c1c1c;border:1px solid #555;color:#fff;font:14px sans-serif;padding:6px 10px;border-radius:6px';
   ui.innerHTML = Object.entries(BS.RING).map(([k, c]) => `<span style="display:inline-block;width:14px;height:14px;border-radius:7px;background:${c};border:2px solid #fff;vertical-align:middle"></span> ${k} `).join('') + ' &nbsp; dev clock (PT) <input id="clk" type="range" min="0" max="1439" step="15" style="vertical-align:middle;width:220px"> <b id="clkv"></b>';
@@ -353,13 +360,22 @@ function start() {
     window.walkPath = path;
     (function step() { if (i < path.length) { spr = path[i]; i += 2; draw(spr); requestAnimationFrame(step); } })();
   }
+  if (STATUS) {   // A2: live bots on the walker graph, villagers too with &walkers=N
+    const WK = window.WALK2X, L = window.BOT_SPOTS.install(WK, T, window.TOWN_ASSETS.assets, { clock: STATUS.clock, model: STATUS.model });
+    if (WALKERS) WK.spawn(WALKERS);
+    const free = WK.roadNodes.filter(n => WK.S.owner[n.id] == null);
+    STATUS.roster.bots.forEach((b, i) => L.settle(L.add(b, free[(i * 23) % free.length].id, 101 + i)));   // the town opens settled
+    STATUS.live = L; window.__render = () => draw(null);
+    const step = () => { L.update(); WK.tick(); };
+    window.__live = { L, run(sec) { for (let i = 0; i < Math.round(sec * 60); i++) step(); draw(null); }, step };
+    if (q.get('manual') !== '1') { let acc = 0, last = performance.now(); (function loop(now) { acc += Math.min(250, now - last); last = now; while (acc >= 1000 / 60) { step(); acc -= 1000 / 60; } draw(null); requestAnimationFrame(loop); })(last); }
+    draw(null); ready(); return;
+  }
   if (WALKERS) {
     window.WALK2X.spawn(WALKERS); window.__render = () => draw(null);
     if (q.get('manual') !== '1') { let acc = 0, last = performance.now(); (function loop(now) { acc += Math.min(250, now - last); last = now; while (acc >= 1000 / 60) { window.WALK2X.tick(); acc -= 1000 / 60; } draw(null); requestAnimationFrame(loop); })(last); }
     draw(null); ready(); return;
   }
-  if (STATUS) { window.__render = () => draw(null);
-    if (q.get('t') == null) setInterval(() => { if (STATUS.model().some(b => b.state === 'working')) draw(null); }, 100); }   // the working pulse: ~10 fps redraw
   draw(STATUS ? null : spr); if (PLAY) initGame(); ready();
 }
 for (const a of window.TOWN_ASSETS.assets) {
