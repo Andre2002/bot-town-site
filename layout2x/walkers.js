@@ -106,7 +106,7 @@
   const standing = o => !o.moving && !o.inside;
   function astar(from, goal, w, avoid) {
     const G = { [from]: 0 }, P = {}, open = [from], goalN = N[goal], h = id => Math.hypot(N[id].x - goalN.x, N[id].y - goalN.y) / TILE;
-    const blockedBy = {}; if (avoid) for (const o of S.walkers) if (o !== w && standing(o) && o.at) blockedBy[o.at] = 1;
+    const blockedBy = {}; if (avoid) for (const o of S.walkers) if (o !== w && standing(o) && o.at) { blockedBy[o.at] = 1; if (o.gap != null && S.owner[o.gap] === o.id) blockedBy[o.gap] = 1; }   // a stander's spacing gap is held as long as it stands
     const F = { [from]: h(from) }, done = {};
     while (open.length) {
       let bi = 0; for (let i = 1; i < open.length; i++) if (F[open[i]] < F[open[bi]]) bi = i;
@@ -149,7 +149,7 @@
   // else) can't go until that walker moves on, however long that takes; at the re-plan it turns away like a starved entrant
   function doorDn(w) { const next = w.path[0]; if (!next) return null; return !N[next].road && N[next].door ? N[next] : (w.path[1] && N[w.path[1]].door && N[w.path[1]].roadNode === next ? N[w.path[1]] : null); }
   function doorShut(w) {
-    const dn = doorDn(w); if (w.brain || !dn || (w.zone && w.zone === DOORS[dn.door].zone)) return false;
+    const dn = doorDn(w); if (!dn || (w.zone && w.zone === DOORS[dn.door].zone)) return false;
     return DOORS[dn.door].zone.some(id => { const o = S.walkers.find(q => q.id === S.owner[id]); return o && o !== w && o.at === id && !o.moving && !o.inside && o.blk; });
   }
   // the re-goal (any walker blocked REGOAL_S, not only a starved crossing entrant) takes the normal pick when its route leaves
@@ -157,10 +157,18 @@
   // so a walker behind a queue that can't clear walks off another way instead of re-choosing the queue it is stuck in
   function boxEscape(w, avoid) {   // the first pick is the normal re-goal's (same draw from the shared stream); further picks use a private
     // stream, so the shared one (everyone else's goals) stays as it would have been without the escape
-    const ok = g => { if (avoid && g.door === avoid) return false; const p = astar(w.at, g.node, w, true); return p && p.length && S.owner[p[0]] == null && !leaverOf(p[0]) && (!isBox(p[0]) || waysThrough({ path: p }).every(id => S.owner[id] == null || S.owner[id] === w.id)); };
+    // the whole crossing route: the first crossing the route enters (wherever on it) must not have its way through held by a
+    // standing walker (a stopped queue), and when the route starts into it, every tile of the way through must be free now
+    const stood = id => { const o = S.owner[id] != null && S.owner[id] !== w.id && S.walkers.find(q => q.id === S.owner[id]); return o && !o.moving; };
+    const ok = g => { if (avoid && g.door === avoid) return false; const p = astar(w.at, g.node, w, true); if (!(p && p.length && S.owner[p[0]] == null && !leaverOf(p[0]))) return false;
+      const k = p.findIndex(isBox); if (k < 0) return true; const way = waysThrough({ path: p.slice(k) });
+      return k === 0 ? way.every(id => S.owner[id] == null || S.owner[id] === w.id) : !way.some(stood); };
     const g0 = (w.brain && w.brain(w)) || pickGoal(w); if (ok(g0)) return g0;
     let s = (w.id * 7919 + Math.round(S.t * 60)) % 2147483648; const r = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
-    for (let i = 0; i < 11; i++) { const g = pickGoal(w, r); if (ok(g)) return g; }
+    // a fixed-goal walker (a brain: a live bot, whose goal comes from its state) can't take a new goal; it turns away to a free
+    // road tile instead (stay 0) and, arriving, asks its brain again, so it comes back to its goal another way or once the queue
+    // has cleared
+    for (let i = 0; i < 11; i++) { let g = pickGoal(w, r); if (w.brain) { if (g.kind === 'door') continue; g = { kind: 'road', node: g.node, stay: 0, detour: true }; } if (ok(g)) return g; }
     return g0;
   }
 
@@ -212,11 +220,14 @@
     if (!N[next].road || !N[w.at].road) { if (others.some(o => hitAny(mine, footBox(o.x, o.y)) || (o.moving && rest(o).some(b => hitAny(mine, b))))) return false; }
     return !others.some(o => o.moving && o.offStep && rest(o).some(b => hitAny(mine, b)));
   }
+  // a side-step never takes a tile that is the next tile of a walker coming off a crossing (in it, or mid-step out of it): that
+  // walker can't go back, so a side-stepper standing there stops it inside the crossing, where it holds the box for everyone
+  const nextOfOther = (w, id) => S.walkers.some(o => o !== w && !o.inside && o.path[0] === id && (isBox(o.at) || (o.from != null && isBox(o.from))));
   function sidestep(w, claimed, prefer) {
     const here = N[w.at], nx = w.path[0] ? N[w.path[0]] : null;
     const hx = nx ? Math.sign(Math.round(nx.x - here.x)) : 0, hy = nx ? Math.sign(Math.round(nx.y - here.y)) : 0;
     const right = [-hy, hx];
-    const cands = here.edges.map(e => N[e.to]).filter(n => n.road && free(n.id, w) && !claimed.has(n.id) && !leaverOf(n.id) && (!S.offClear || offClear(w, n.id)) && n.id !== (nx && nx.id) && !(isBox(n.id) && !isBox(w.at)))
+    const cands = here.edges.map(e => N[e.to]).filter(n => n.road && free(n.id, w) && !claimed.has(n.id) && !leaverOf(n.id) && !nextOfOther(w, n.id) && (!S.offClear || offClear(w, n.id)) && n.id !== (nx && nx.id) && !(isBox(n.id) && !isBox(w.at)))
       .map(n => { const dx = Math.sign(Math.round(n.x - here.x)), dy = Math.sign(Math.round(n.y - here.y)); return { n, perp: dx * hx + dy * hy === 0, right: dx === right[0] && dy === right[1] }; })
       .filter(c => (c.perp || prefer === 'any') && (prefer !== 'right' || c.right)).sort((p, q) => (q.perp - p.perp) || (q.right - p.right));
     if (!cands.length) return false;
@@ -266,7 +277,7 @@
       }
       if (w.blk && !S.naive) {   // the timeouts run on the clock, not only at a retry: ~3s re-plan, ~6s a new goal
         const held = S.t - w.blk.t0;
-        if (held >= REGOAL_S) { lg(w, 'regoal', `blocked ${held.toFixed(2)}s at ${w.path[0]}`); setGoal(w, w.brain ? undefined : boxEscape(w)); w.retryAt = 0; }
+        if (held >= REGOAL_S) { lg(w, 'regoal', `blocked ${held.toFixed(2)}s at ${w.path[0]}`); setGoal(w, boxEscape(w)); w.retryAt = 0; }
         else if (held >= REPLAN_S && !w.blk.replanned && doorShut(w)) { const d = doorDn(w).door; lg(w, 'regoal', `${d} zone held by a stopped walker, turns away`); setGoal(w, boxEscape(w, d)); w.retryAt = 0; }
         else if (held >= REPLAN_S && !w.blk.replanned) { const b0 = w.blk; b0.replanned = true; plan(w, true); w.blk = b0; lg(w, 'replan', `blocked ${held.toFixed(2)}s, new route via ${w.path[0]}`); w.retryAt = 0; }
         if (!w.path.length) return;
@@ -289,14 +300,20 @@
         if (q && q !== w && !q.moving && !q.inside && q.at === p1 && q.gap == null && c.road && S.owner[next] == null && !claimed.has(next) && !isBox(next) && !isBox(p1)
             && (Math.abs(a.y - c.y) < 1 || Math.abs(a.x - c.x) < 1) && !Object.values(DOORS).some(D => D.zone.includes(next))) { S.owner[next] = q.id; q.gap = next; }
       }
-      let ok = free(next, w) && !claimed.has(next) && !queued && !(zw && S.owner[next] == null);
+      // a crossing entrant that waits at a free entry for its way through has first call on that way through (oldest wait first):
+      // walkers about to step onto one of those tiles yield, so cross traffic can't keep refilling it. Only while every tile of
+      // it is free or held by a walker on the move (traffic that clears); a way through held by a standing walker gives no call
+      const bw = S.owner[next] == null && S.walkers.find(q => q !== w && !q.moving && !q.inside && q.blk && q.blk.boxWait && q.path[0] === q.blk.boxWait[0]
+        && q.blk.t0 < (w.blk ? w.blk.t0 : S.t) && q.blk.boxWait.includes(next)
+        && q.blk.boxWait.every(id => { const o = S.owner[id]; return o == null || o === q.id || S.walkers.some(m => m.id === o && m.moving); }));
+      let ok = free(next, w) && !claimed.has(next) && !queued && !(zw && S.owner[next] == null) && !bw;
       // don't block the box: a walker enters a crossing (tiles on two crossing tracks) only when the first tile after it is free
       // crossing the box: a walker entering a crossing claims every crossing tile on its way through plus the tile after,
       // all at once, so walkers inside a crossing never wait on each other (no gridlock rings in the box)
       let boxHold = null;
       if (ok && isBox(next) && !isBox(w.at)) {
         const k = w.path.findIndex(id => !isBox(id)); boxHold = (k < 0 ? w.path : w.path.slice(0, k + 1)).slice(1);
-        if (boxHold.some(id => !free(id, w) || claimed.has(id))) ok = false;
+        if (boxHold.some(id => !free(id, w) || claimed.has(id))) { ok = false; if (!w.blk) w.blk = { t0: S.t, fails: 0, replanned: false }; w.blk.boxWait = [next, ...boxHold]; }
         const dIn = boxHold.find(id => !N[id].road && N[id].door);   // a door straight off the crossing: its zone goes with the crossing
         if (ok && dIn) { const zone = DOORS[N[dIn].door].zone; if (zoneFree(w, zone) && !zone.some(id => claimed.has(id) && S.owner[id] !== w.id)) { claimZone(w, zone); zone.forEach(id => claimed.add(id)); } else ok = false; }
       }
