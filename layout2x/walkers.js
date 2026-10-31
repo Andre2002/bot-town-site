@@ -123,7 +123,7 @@
     if (G[goal] == null) return null;
     const out = []; for (let k = goal; k !== from; k = P[k]) out.unshift(k); return out;
   }
-  function pickGoal(w) {
+  function pickGoal(w, rnd = Math.random) {   // rnd: the shared seeded stream, or a private one (boxEscape)
     const r = rnd();
     if (r < 0.4) { const ds = Object.keys(DOORS); const d = ds[Math.floor(rnd() * ds.length)]; return { kind: 'door', node: DOORS[d].node, door: d, stay: 2 + rnd() * 4 }; }
     if (r < 0.55 && SPOTS.length) { const s = SPOTS[Math.floor(rnd() * SPOTS.length)]; if (S.owner[s.node] == null && !S.walkers.some(o => o.goal && o.goal.node === s.node)) return { kind: 'spot', node: s.node, stay: 3 + rnd() * 2 }; }
@@ -137,6 +137,33 @@
     const p = (avoid && astar(w.at, w.goal.node, w, true)) || astar(w.at, w.goal.node, w, false);
     w.path = p || []; if (!p) lg(w, 'noroute', w.goal.node);
   }
+  // crossing starvation: a walker at a free crossing entry whose way through keeps being taken by crossing traffic would
+  // wait on and on (a re-plan finds the same way). At the re-plan (and the re-goal) it turns away instead: a fresh goal whose
+  // route leaves over a free tile (or a crossing whose whole way through is free), so it walks off rather than standing there
+  const waysThrough = w => { const k = w.path.findIndex(id => !isBox(id)); return k < 0 ? w.path : w.path.slice(0, k + 1); };
+  function boxStarved(w) {
+    const next = w.path[0]; if (w.brain || !next || !isBox(next) || isBox(w.at) || !N[w.at].road) return false;
+    return S.owner[next] == null && waysThrough(w).some(id => S.owner[id] != null && S.owner[id] !== w.id);
+  }
+  // door shut: a door-goer whose approach waits on a zone tile where another walker stands blocked (queued for something
+  // else) can't go until that walker moves on, however long that takes; at the re-plan it turns away like a starved entrant
+  function doorDn(w) { const next = w.path[0]; if (!next) return null; return !N[next].road && N[next].door ? N[next] : (w.path[1] && N[w.path[1]].door && N[w.path[1]].roadNode === next ? N[w.path[1]] : null); }
+  function doorShut(w) {
+    const dn = doorDn(w); if (w.brain || !dn || (w.zone && w.zone === DOORS[dn.door].zone)) return false;
+    return DOORS[dn.door].zone.some(id => { const o = S.walkers.find(q => q.id === S.owner[id]); return o && o !== w && o.at === id && !o.moving && !o.inside && o.blk; });
+  }
+  // the re-goal (any walker blocked REGOAL_S, not only a starved crossing entrant) takes the normal pick when its route leaves
+  // over a free tile; when that route starts into the same stopped queue (a tile held by a standing walker) it picks again,
+  // so a walker behind a queue that can't clear walks off another way instead of re-choosing the queue it is stuck in
+  function boxEscape(w, avoid) {   // the first pick is the normal re-goal's (same draw from the shared stream); further picks use a private
+    // stream, so the shared one (everyone else's goals) stays as it would have been without the escape
+    const ok = g => { if (avoid && g.door === avoid) return false; const p = astar(w.at, g.node, w, true); return p && p.length && S.owner[p[0]] == null && !leaverOf(p[0]) && (!isBox(p[0]) || waysThrough({ path: p }).every(id => S.owner[id] == null || S.owner[id] === w.id)); };
+    const g0 = (w.brain && w.brain(w)) || pickGoal(w); if (ok(g0)) return g0;
+    let s = (w.id * 7919 + Math.round(S.t * 60)) % 2147483648; const r = () => (s = (s * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let i = 0; i < 11; i++) { const g = pickGoal(w, r); if (ok(g)) return g; }
+    return g0;
+  }
+
   function setGoal(w, g) { if (w.zone && !w.inside && !w.moving && N[w.at].road) {   // never drop the zone while on the door approach
     const keep = [w.at, w.from]; for (const id of w.zone) if (!keep.includes(id) && S.owner[id] === w.id) delete S.owner[id]; w.zone = null; } w.goal = g || (w.brain && w.brain(w)) || pickGoal(w); w.blk = null; plan(w, true); }   // a live bot (spots.js, ?status=1) has a brain that picks its goal by state and clock
   function addWalker(id, at, pace, goal) {
@@ -239,7 +266,8 @@
       }
       if (w.blk && !S.naive) {   // the timeouts run on the clock, not only at a retry: ~3s re-plan, ~6s a new goal
         const held = S.t - w.blk.t0;
-        if (held >= REGOAL_S) { lg(w, 'regoal', `blocked ${held.toFixed(2)}s at ${w.path[0]}`); setGoal(w); w.retryAt = 0; }
+        if (held >= REGOAL_S) { lg(w, 'regoal', `blocked ${held.toFixed(2)}s at ${w.path[0]}`); setGoal(w, w.brain ? undefined : boxEscape(w)); w.retryAt = 0; }
+        else if (held >= REPLAN_S && !w.blk.replanned && doorShut(w)) { const d = doorDn(w).door; lg(w, 'regoal', `${d} zone held by a stopped walker, turns away`); setGoal(w, boxEscape(w, d)); w.retryAt = 0; }
         else if (held >= REPLAN_S && !w.blk.replanned) { const b0 = w.blk; b0.replanned = true; plan(w, true); w.blk = b0; lg(w, 'replan', `blocked ${held.toFixed(2)}s, new route via ${w.path[0]}`); w.retryAt = 0; }
         if (!w.path.length) return;
       }
@@ -252,7 +280,8 @@
       if (S.naive) { w.path.shift(); start(w, next, claimed); return; }
       // a walker that has waited for a tile has first call on it when it frees (no starving at a merge), so the others yield
       const qd = S.want[next], qw = qd && qd.id !== w.id && S.walkers.find(q => q.id === qd.id);
-      const queued = S.owner[next] == null && qw && !qw.moving && !qw.inside && qw.path[0] === next && qw.blk && qd.t0 < (w.blk ? w.blk.t0 : S.t);
+      const queued = S.owner[next] == null && qw && !qw.moving && !qw.inside && qw.path[0] === next && qw.blk && qd.t0 < (w.blk ? w.blk.t0 : S.t)
+        && !(isBox(next) && !isBox(qw.at) && waysThrough(qw).some(id => S.owner[id] === w.id));   // no first call to a crossing entrant that waits on a tile this walker stands on: it can only go once this walker has left (a standoff otherwise)
       // a door-goer waiting for its zone holds first call on the zone's free tiles, so passing traffic can't starve it
       const zw = Object.entries(S.zoneWant).find(([d, id]) => id !== w.id && DOORS[d].zone.includes(next) && S.walkers.some(q => q.id === id && !q.moving && !q.inside && q.blk && q.blk.zone === d));
       { // spacing: the walker ahead on this lane stands still, so it takes the tile in between as its gap (one empty tile)
