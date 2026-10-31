@@ -14,6 +14,7 @@ function drawNative(im, x, y, w, h) { g.drawImage(im, Math.round(x + w / 2 - im.
 <script src="spots.js"></script>
 <script src="labels.js"></script>
 <script src="board.js"></script>
+<script src="boardview.js"></script>
 <script src="daynight.js"></script>
 <script src="bubbles.js"></script>
 <script>
@@ -189,7 +190,7 @@ const STATUS = STATUS_MODE ? (() => {
   const BS = window.BOT_STATUS, BF = window.BOT_FEED, load = f => { const x = new XMLHttpRequest(); x.open('GET', f, false); x.send(); return JSON.parse(x.responseText); };
   const roster = load('roster.json'), feedNow = q.get('feedms') != null ? () => +q.get('feedms') : () => Date.now();
   const src = STATUS_MODE === 'mock' ? BS.mockSource(load('status.mock.json'))
-    : BF.create({ url: BF.feedUrl(q.get('feed')), roster, fetch: (u, o) => fetch(u, o), now: feedNow, onUpdate: F => { window.__feed = { ok: F.ok, error: F.error, polls: F.polls, statuses: F.getStatuses() }; window.__render && window.__render(); } }).start();
+    : BF.create({ url: BF.feedUrl(q.get('feed')), roster, fetch: (u, o) => fetch(u, o), now: feedNow, onUpdate: F => { window.__feed = { ok: F.ok, error: F.error, polls: F.polls, statuses: F.getStatuses() }; window.__render && window.__render(); if (window.__boardView) window.__boardView.paint(); } }).start();
   const resolver = STATUS_MODE === 'mock' ? BS.resolve : BF.resolve;
   let fixed = BS.parseClock(q.get('clock'));
   const clock = () => fixed != null ? fixed : BS.ptMinutes(new Date());
@@ -219,6 +220,49 @@ const STATUS = STATUS_MODE ? (() => {
     if (!b) { tip.style.display = 'none'; return; } tip.textContent = `${b.name}: ${b.state}${b.task ? ' (' + b.task + ')' : ''}`; tip.style.left = e.clientX + 12 + 'px'; tip.style.top = e.clientY + 12 + 'px'; tip.style.display = 'block'; };
   addEventListener('mousemove', hit); addEventListener('pointerdown', hit);   // hover, or tap on touch screens
   window.__status = S; return S;
+})() : null;
+// Board click panel (boardview.js, plan v2 2026-10-31): click/tap the map board -> read-only Task Board panel (desktop: closeup.png x3,
+// under 700px: a 343px bottom sheet). Closes on Esc, a click/tap outside, or the 44x44 ✕; focus goes to ✕ and back to the map.
+// Redrawn on every feed update while open. window.__boardView = { open, close, isOpen, layout } for tests and proof.
+const BOARDVIEW = STATUS ? (() => {
+  const V = window.BOT_BOARDVIEW, R = window.BOT_BOARD.RECT, art = new Image(); art.src = '../' + V.ART;
+  cv.tabIndex = 0;
+  const wrap = document.createElement('div'); wrap.id = 'boardview'; wrap.hidden = true;
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.6)';
+  wrap.innerHTML = '<div id="bv-box" role="dialog" aria-modal="true" aria-label="Task Board" style="position:absolute"><div id="bv-scroll"><canvas id="bv-c"></canvas></div>'
+    + '<button id="bv-x" aria-label="Close" style="position:absolute;width:44px;height:44px;border:2px solid #f6ecd0;border-radius:8px;background:#3d2517;color:#f6ecd0;font:bold 20px sans-serif;cursor:pointer">✕</button></div>';
+  document.body.appendChild(wrap);
+  const box = wrap.querySelector('#bv-box'), sc = wrap.querySelector('#bv-scroll'), pc = wrap.querySelector('#bv-c'), x = wrap.querySelector('#bv-x'), pg = pc.getContext('2d');
+  const BV = { layout: null, open: false };
+  function paint() {
+    if (!BV.open) return;
+    const data = V.cards(STATUS.model(), STATUS.board), vw = innerWidth, vh = innerHeight, sheet = V.isSheet(vw);
+    if (sheet) {
+      const full = V.SHEET.bar + V.SHEET.gapY + Math.max(1, data.cards.length) * (V.SHEET.card.h + V.SHEET.gapY), h = V.sheetHeight(data.cards.length, vh);
+      pc.width = V.SHEET.w; pc.height = full; pc.style.width = V.SHEET.w + 'px'; pc.style.height = full + 'px';
+      box.style.cssText = `position:absolute;left:${Math.round((vw - V.SHEET.w) / 2)}px;bottom:0;width:${V.SHEET.w}px;height:${h}px;border-radius:12px 12px 0 0;overflow:hidden`;
+      sc.style.cssText = `width:${V.SHEET.w}px;height:${h}px;overflow-y:auto;background:#5a3a22`;
+      x.style.right = '0px'; x.style.top = '0px'; x.style.left = ''; 
+      BV.layout = { sheet, data, cards: V.drawSheet(pg, data, full), box: box.getBoundingClientRect() };
+    } else {
+      pc.width = V.PANEL.w; pc.height = V.PANEL.h; pc.style.width = V.PANEL.w + 'px'; pc.style.height = V.PANEL.h + 'px';
+      box.style.cssText = `position:absolute;left:${Math.round((vw - V.PANEL.w) / 2)}px;top:${Math.max(0, Math.round((vh - V.PANEL.h) / 2))}px;width:${V.PANEL.w}px;height:${V.PANEL.h}px`;
+      sc.style.cssText = ''; pc.style.imageRendering = 'pixelated';
+      x.style.top = '0px'; x.style.left = (V.PANEL.w + 8) + 'px'; x.style.right = '';
+      BV.layout = { sheet, data, cards: V.drawPanel(pg, data, art), box: box.getBoundingClientRect() };
+    }
+  }
+  art.onload = paint;
+  function open() { BV.open = true; wrap.hidden = false; paint(); x.focus(); }
+  function close() { if (!BV.open) return; BV.open = false; wrap.hidden = true; cv.focus(); }
+  x.onclick = close;
+  wrap.addEventListener('click', e => { if (!box.contains(e.target)) close(); });   // click (not pointerdown), so focus lands back on the map after the press
+  addEventListener('keydown', e => { if (e.key === 'Escape' && BV.open) { e.preventDefault(); close(); } });
+  cv.addEventListener('click', e => { const c = cv.getBoundingClientRect(), k = cv.width / c.width, px = (e.clientX - c.left) * k + CAM.x, py = (e.clientY - c.top) * k + CAM.y;
+    if (px >= R.x && px <= R.x + R.w && py >= R.y && py <= R.y + R.h) open(); });
+  addEventListener('resize', paint);
+  window.__boardView = { open, close, paint, get isOpen() { return BV.open; }, get layout() { return BV.layout; } };
+  return { paint };
 })() : null;
 // A5 day/night (daynight.js): multiply tint + lamp glows by the sim clock, then the status glows and name labels again on top so
 // they stay full brightness. Only with ?status=1. Mode: ?night=1 | ?night=0 | auto, cycled by the legend button.
