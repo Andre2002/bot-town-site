@@ -19,17 +19,21 @@
   // bots: [{id, name, x, y}] (feet); measure(text, F) -> text width in px. Returns the bots with .lab = {x, y, w, h, F, lvl, side, clear}
   const inside = (c, B) => !B || (c.x >= 0 && c.y >= 0 && c.x + c.w <= B.w && c.y + c.h <= B.h);
   const clamp = (c, B) => B ? Object.assign({}, c, { x: Math.max(0, Math.min(B.w - c.w, c.x)), y: Math.max(0, Math.min(B.h - c.h, c.y)) }) : c;
-  function place(bots, measure, bounds) {
-    const figs = bots.map(b => ({ id: b.id, r: fig(b) })), placed = [];
+  // avoid: extra rects no label may cover (A4: the task board's note slots, #156 QA follow-up). If no spot is fully clear,
+  // the fallback is the first spot clear of avoid (it may touch a figure), else the first spot.
+  function place(bots, measure, bounds, avoid) {
+    const figs = bots.map(b => ({ id: b.id, r: fig(b) })), placed = [], AV = avoid || [];
     for (const b of bots.slice().sort((p, q) => p.x - q.x || p.y - q.y)) {
-      let pick = null, first = null;
+      let pick = null, first = null, firstAv = null;
       for (const F of SIZES) { for (let c of candidates(b, measure(b.name, F) + 8, F)) {
         if (c.side === 'above') c = clamp(c, bounds);   // above: slide along the edge; sides: skip when off the canvas
         if (!first) first = clamp(c, bounds);
         if (!inside(c, bounds)) continue;
+        if (AV.some(a => hit(c, a))) continue;
+        if (!firstAv) firstAv = c;
         if (!figs.some(f => f.id !== b.id && hit(c, f.r)) && !placed.some(p => hit(c, p))) { pick = c; break; } }
         if (pick) break; }
-      b.lab = Object.assign({}, pick || first, { clear: !!pick }); placed.push(b.lab);
+      b.lab = Object.assign({}, pick || firstAv || first, { clear: !!pick }); placed.push(b.lab);
     }
     return bots;
   }

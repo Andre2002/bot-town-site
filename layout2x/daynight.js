@@ -22,19 +22,24 @@
     return `rgb(${mix(255, r, k * MAX)},${mix(255, gg, k * MAX)},${mix(255, b, k * MAX)})`;
   }
   // g: 2d context in world coords; rect: {x,y,w,h}; lamps: [{x,y}] light points
+  const GLOW_R = 60, POOL = { rx: 40, ry: 12 };   // lamp head glow radius (was 120) and ground pool, world px
   function draw(g, k, rect, lamps) {
     if (k <= 0) return;
     g.save(); g.globalCompositeOperation = 'multiply'; g.fillStyle = tintColour(k); g.fillRect(rect.x, rect.y, rect.w, rect.h);
     g.globalCompositeOperation = 'lighter';
+    // lamp glow (A4, Andre 2026-10-30: was a 120px halo): ~half radius, brighter centre, quick falloff, lighting the lamp head,
+    // plus a small flattened pool on the ground at the lamp's base (p.by) when given
     for (const p of lamps || []) {
-      const R = 120, gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, R);
-      gr.addColorStop(0, `rgba(255,200,110,${0.55 * k})`); gr.addColorStop(1, 'rgba(255,200,110,0)');
+      const R = GLOW_R, gr = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, R);
+      gr.addColorStop(0, `rgba(255,214,130,${0.9 * k})`); gr.addColorStop(0.25, `rgba(255,200,110,${0.5 * k})`); gr.addColorStop(0.6, `rgba(255,190,100,${0.12 * k})`); gr.addColorStop(1, 'rgba(255,190,100,0)');
       g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, R, 0, Math.PI * 2); g.fill();
+      if (p.by != null) { g.save(); g.translate(p.x, p.by); g.scale(1, POOL.ry / POOL.rx); const pr = g.createRadialGradient(0, 0, 0, 0, 0, POOL.rx);
+        pr.addColorStop(0, `rgba(255,200,110,${0.35 * k})`); pr.addColorStop(1, 'rgba(255,200,110,0)'); g.fillStyle = pr; g.beginPath(); g.arc(0, 0, POOL.rx, 0, Math.PI * 2); g.fill(); g.restore(); }
     }
     g.restore();
   }
   const parseMode = s => s === '1' ? 'night' : s === '0' ? 'day' : 'auto';
   const next = m => MODES[(MODES.indexOf(m) + 1) % MODES.length];
-  const API = { DUSK_FROM, NIGHT_FROM, DAWN_FROM, DAY_FROM, TINT, MODES, darkness, level, phase, tintColour, draw, parseMode, next };
+  const API = { GLOW_R, POOL, DUSK_FROM, NIGHT_FROM, DAWN_FROM, DAY_FROM, TINT, MODES, darkness, level, phase, tintColour, draw, parseMode, next };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.BOT_DAYNIGHT = API;
 })(typeof window !== 'undefined' ? window : globalThis);
