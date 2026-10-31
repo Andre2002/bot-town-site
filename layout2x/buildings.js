@@ -406,15 +406,22 @@ window.TOWN2X = /*JSON*/
   },
   {
    "id": "spare_w1",
-   "label": "Spare lot (working)",
-   "kind": "lot",
+   "label": "Design Shop",
+   "kind": "building",
    "district": "working",
-   "img": null,
-   "w": 480,
+   "img": "assets/town2x/designshop_r3d.png",
+   "w": 460,
    "h": 360,
-   "x": 2304,
+   "x": 2314,
    "y": 1880,
-   "status": "lot"
+   "door": {
+    "x": 227,
+    "y": 235,
+    "w": 70,
+    "h": 118,
+    "measured": "designshop_r3d (460x360, art bbox 0,0-460,358): door outline x227-296, lintel y235, threshold y352; door point = bottom-centre (262,353) = town (2576,2233); supersedes plan v3b door (329,358)"
+   },
+   "status": "final-r3d"
   }
  ],
  "viewport": {

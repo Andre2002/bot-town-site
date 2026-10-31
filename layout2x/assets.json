@@ -254,16 +254,19 @@
   },
   {
    "id": "spare_w1",
-   "label": "Spare lot (working)",
-   "kind": "lot",
-   "png": "assets/town2x/slots/spare_w1.png",
+   "label": "Design Shop",
+   "kind": "building",
+   "png": "assets/town2x/designshop_r3d.png",
    "footprint": {
-    "x": 2304,
+    "x": 2314,
     "y": 1880,
-    "w": 480,
+    "w": 460,
     "h": 360
    },
-   "door": null,
+   "door": {
+    "x": 2576,
+    "y": 2233
+   },
    "anchor": {
     "x": 2544,
     "y": 2240

@@ -779,6 +779,76 @@ window.TOWN_INTERIORS = /*JSON*/
      "png": "assets/town2x/interiors/workshop/lumber.png"
     }
    ]
+  },
+  {
+   "id": "spare_w1",
+   "label": "Design Shop",
+   "w": 512,
+   "h": 472,
+   "walls": {
+    "side": 24,
+    "bottom": 24,
+    "back": 120
+   },
+   "exit": {
+    "x": 253,
+    "y": 448,
+    "w": 70,
+    "h": 24
+   },
+   "spawn": {
+    "x": 288,
+    "y": 432
+   },
+   "floor_png": "assets/town2x/interiors/spare_w1/floor.png",
+   "walls_png": "assets/town2x/interiors/spare_w1/walls.png",
+   "furniture": [
+    {
+     "id": "fabric_shelf",
+     "label": "Fabric shelf",
+     "x": 24,
+     "y": 120,
+     "w": 128,
+     "h": 88,
+     "png": "assets/town2x/interiors/spare_w1/fabric_shelf.png"
+    },
+    {
+     "id": "cutting_table",
+     "label": "Cutting table",
+     "x": 184,
+     "y": 120,
+     "w": 176,
+     "h": 80,
+     "png": "assets/town2x/interiors/spare_w1/cutting_table.png"
+    },
+    {
+     "id": "dress_form",
+     "label": "Dress form",
+     "x": 432,
+     "y": 120,
+     "w": 56,
+     "h": 96,
+     "png": "assets/town2x/interiors/spare_w1/dress_form.png"
+    },
+    {
+     "id": "sewing_desk",
+     "label": "Sewing desk",
+     "x": 200,
+     "y": 288,
+     "w": 112,
+     "h": 72,
+     "png": "assets/town2x/interiors/spare_w1/sewing_desk.png"
+    },
+    {
+     "id": "easel",
+     "label": "Design easel",
+     "x": 24,
+     "y": 280,
+     "w": 72,
+     "h": 96,
+     "png": "assets/town2x/interiors/spare_w1/easel.png"
+    }
+   ]
   }
  ]
 }
