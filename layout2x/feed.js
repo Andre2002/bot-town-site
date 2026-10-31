@@ -1,6 +1,6 @@
 // Live status, phase B1 (plan rev 5, "B1 · Real data feed", decided by Vega 2026-10-30): the feed adapter for ?status=1.
-//   Source: bot-ping Worker events {owner, bot, state, task}. The Worker's public read route is pending Andre's approval, so the
-//   URL is configurable (?feed=<same-origin path | allowed Worker origin>, else the default; default FEED_URL below) and is a local fixture until then. Accepted bodies: an array or
+//   Source: bot-ping Worker events {owner, bot, state, task}. Default: the Worker's public read route GET /status?owner=andre (approved 2026-10-30); the
+//   URL is configurable (?feed=<same-origin path | allowed Worker origin>, else the default FEED_URL below; feed.fixture.json for local proof). Accepted bodies: an array or
 //   {statuses:[...]} of {id, state, task, since} (getStatuses() schema), or bot-ping style {bot, state, task, ts}.
 //   Rules: asleep -> sleeping; names map through roster.json (id or name, case-insensitive), off-roster bots are hidden;
 //   since = the server timestamp (a future since is clamped to now); no event for 15 min = stale, shown as idle; poll every 30 s (backoff x2 to 5 min after a failure, reset on success; no overlapping polls); a failed poll (incl. an empty or
@@ -10,7 +10,7 @@
 //   sleep beats a fed idle, a fed sleeping shows sleeping.
 // Pure (fetch, clock and timers injected), so tests/feed.test.js runs it in node with a fake clock and fetch.
 (function (root) {
-  const FEED_URL = 'feed.fixture.json';
+  const FEED_URL = 'https://bot-town.andrelesliemarks.workers.dev/status?owner=andre';   // the Worker's public read route (GET /status)
   const POLL_MS = 30 * 1000, MAX_POLL_MS = 5 * 60 * 1000, STALE_MS = 15 * 60 * 1000, MAX_CHARS = 24;
   const FEED_ORIGINS = ['https://bot-town.andrelesliemarks.workers.dev'];   // allowed ?feed= origins besides same-origin paths
   const SLEEP_FROM = 0, WAKE_AT = 7 * 60;
@@ -59,7 +59,7 @@
     return min >= SLEEP_FROM && min < WAKE_AT ? 'sleeping' : 'idle';
   }
 
-  // ?feed= value -> URL to poll: same-origin paths (no scheme, no //host) or an allowed origin; anything else -> default fixture
+  // ?feed= value -> URL to poll: same-origin paths (no scheme, no //host) or an allowed origin; anything else -> FEED_URL (the Worker's /status)
   function feedUrl(v) {
     if (v == null || v === '') return FEED_URL; const u = String(v).trim();
     if (/^[\w\-./?=&%~]+$/.test(u) && !u.startsWith('//') && !/^[a-z][a-z0-9+.\-]*:/i.test(u) && !u.includes('..')) return u;

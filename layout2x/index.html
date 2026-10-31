@@ -182,8 +182,8 @@ function drawProp(a) {
 // PT clock send them (shop work tiles, idle spots, home to bed), with the ground glow (working green, idle grey, sleeping purple).
 // Clock: ?clock=HH:MM (PT) or the live PT clock; the dev slider sets it. Feed: see B1 below. &walkers=N adds villagers;
 // &manual=1 leaves the ticks to the caller (window.__live.run(seconds)).
-// B1 (feed.js): ?status=1 is the live feed (polled every 30 s from ?feed=<url>, default feed.js FEED_URL; the Worker read route is
-// pending Andre), ?status=mock is the A1 mock (status.mock.json). &feedms=<epoch ms> pins the feed's clock (proof shots).
+// B1 (feed.js): ?status=1 is the live feed (polled every 30 s from ?feed=<url>, default feed.js FEED_URL = the Worker's GET /status?owner=andre;
+// ?feed=feed.fixture.json for the local fixture), ?status=mock is the A1 mock (status.mock.json). &feedms=<epoch ms> pins the feed's clock (proof shots).
 const STATUS_MODE = q.get('status') === '1' ? 'live' : q.get('status') === 'mock' ? 'mock' : null;
 const STATUS = STATUS_MODE ? (() => {
   const BS = window.BOT_STATUS, BF = window.BOT_FEED, load = f => { const x = new XMLHttpRequest(); x.open('GET', f, false); x.send(); return JSON.parse(x.responseText); };
