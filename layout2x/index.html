@@ -10,6 +10,7 @@ function drawNative(im, x, y, w, h) { g.drawImage(im, Math.round(x + w / 2 - im.
 <script src="interiors.js"></script>
 <script src="walkers.js"></script>
 <script src="status.js"></script>
+<script src="feed.js"></script>
 <script src="spots.js"></script>
 <script src="labels.js"></script>
 <script src="board.js"></script>
@@ -179,11 +180,17 @@ function drawProp(a) {
 }
 // ?status=1: live bot status (status.js A1 + spots.js A2): the 14 roster bots walk the tile graph to where their state and the
 // PT clock send them (shop work tiles, idle spots, home to bed), with the ground glow (working green, idle grey, sleeping purple).
-// Clock: ?clock=HH:MM (PT) or the live PT clock; the dev slider sets it. Mock feed only (status.mock.json). &walkers=N adds villagers;
+// Clock: ?clock=HH:MM (PT) or the live PT clock; the dev slider sets it. Feed: see B1 below. &walkers=N adds villagers;
 // &manual=1 leaves the ticks to the caller (window.__live.run(seconds)).
-const STATUS = q.get('status') === '1' ? (() => {
-  const BS = window.BOT_STATUS, load = f => { const x = new XMLHttpRequest(); x.open('GET', f, false); x.send(); return JSON.parse(x.responseText); };
-  const roster = load('roster.json'), src = BS.mockSource(load('status.mock.json'));
+// B1 (feed.js): ?status=1 is the live feed (polled every 30 s from ?feed=<url>, default feed.js FEED_URL; the Worker read route is
+// pending Andre), ?status=mock is the A1 mock (status.mock.json). &feedms=<epoch ms> pins the feed's clock (proof shots).
+const STATUS_MODE = q.get('status') === '1' ? 'live' : q.get('status') === 'mock' ? 'mock' : null;
+const STATUS = STATUS_MODE ? (() => {
+  const BS = window.BOT_STATUS, BF = window.BOT_FEED, load = f => { const x = new XMLHttpRequest(); x.open('GET', f, false); x.send(); return JSON.parse(x.responseText); };
+  const roster = load('roster.json'), feedNow = q.get('feedms') != null ? () => +q.get('feedms') : () => Date.now();
+  const src = STATUS_MODE === 'mock' ? BS.mockSource(load('status.mock.json'))
+    : BF.create({ url: BF.feedUrl(q.get('feed')), roster, fetch: (u, o) => fetch(u, o), now: feedNow, onUpdate: F => { window.__feed = { ok: F.ok, error: F.error, polls: F.polls, statuses: F.getStatuses() }; window.__render && window.__render(); } }).start();
+  const resolver = STATUS_MODE === 'mock' ? BS.resolve : BF.resolve;
   let fixed = BS.parseClock(q.get('clock'));
   const clock = () => fixed != null ? fixed : BS.ptMinutes(new Date());
   // where each bot is: its live walker (A2); bots indoors (asleep, at the pub, library or hall) are hidden. Name labels go
@@ -193,7 +200,7 @@ const STATUS = q.get('status') === '1' ? (() => {
     return { x: R.x + Math.min(...xs) - 2, y: R.y + Math.min(...ys) - 12, w: Math.max(...xs) - Math.min(...xs) + BB.NOTE.w + 4, h: Math.max(...ys) - Math.min(...ys) + BB.NOTE.h + 26 }; })();   // -12/+26: note pop-in drop and fall-off
   const place = list => window.BOT_LABELS.place(list, (n, F) => { g.font = `bold ${F}px sans-serif`; return g.measureText(n).width; }, { w: W, h: H }, [NB]);
   const S = { notesBox: NB, roster, src, clock, setClock(m) { fixed = m; window.__render && window.__render(); },
-    model: () => BS.model(roster, src.getStatuses(), clock()),
+    model: () => BS.model(roster, src.getStatuses(), clock(), resolver), mode: STATUS_MODE,
     now: () => (q.get('t') != null ? +q.get('t') : performance.now()),   // ?t=<ms> freezes the glow pulse phase (proof shots)
     shown: () => { const L = S.live; if (!L) return []; const m = S.model();
       return place(L.bots.filter(w => !w.inside).map(w => Object.assign(m.find(b => b.id === w.bot.id), { x: Math.round(w.x), y: Math.round(w.y), check: w.check }))); }, boxes: [] };

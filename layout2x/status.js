@@ -26,10 +26,11 @@
     return asleepAt(min) ? 'sleeping' : 'idle';
   }
   // roster + feed statuses + clock -> [{id, name, role, shop, house, state, task, since, ring}] in roster order; feed ids not in the roster are dropped
-  function model(roster, statuses, min) {
+  function model(roster, statuses, min, res) {   // res: optional resolver (feed.js resolve in live mode)
+    res = res || resolve;
     const by = {}; for (const s of statuses || []) if (s && s.id) by[s.id] = s;
     return roster.bots.map(b => {
-      const e = by[b.id], state = resolve(e, min);
+      const e = by[b.id], state = res(e, min);
       return { id: b.id, name: b.name, role: b.role, shop: b.shop, house: b.house, state, task: state === 'working' ? (e.task || null) : null, since: e ? e.since || null : null, ring: RING[state] };
     });
   }

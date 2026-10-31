@@ -1,0 +1,13 @@
+{
+  "_doc": "Local stand-in for the bot-ping Worker read route (pending Andre's approval). getStatuses() schema [{id, state, task, since}], since = server time (ISO). Proof runs rewrite since to the shot time; off-roster bots (Claude Code, smoke-test) are hidden.",
+  "statuses": [
+    { "id": "vega",    "state": "working", "task": "review PR #164",       "since": "2026-10-30T21:40:00-07:00" },
+    { "id": "Vibes",   "state": "working", "task": "B1 live status feed",  "since": "2026-10-30T21:40:00-07:00" },
+    { "id": "pixel",   "state": "idle",    "task": null,                   "since": "2026-10-30T21:40:00-07:00" },
+    { "id": "jenny",   "state": "idle",    "task": null,                   "since": "2026-10-30T21:40:00-07:00" },
+    { "id": "chronos", "state": "asleep",  "task": null,                   "since": "2026-10-30T21:40:00-07:00" },
+    { "id": "wire",    "state": "asleep",  "task": null,                   "since": "2026-10-30T21:40:00-07:00" },
+    { "id": "Claude Code", "state": "working", "task": "hidden",           "since": "2026-10-30T21:40:00-07:00" },
+    { "id": "smoke-test",  "state": "working", "task": "hidden",           "since": "2026-10-30T21:40:00-07:00" }
+  ]
+}
