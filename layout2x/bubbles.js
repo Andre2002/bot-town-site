@@ -25,17 +25,29 @@
     s = s.replace(/\bhttps?:\/\/\S+|\bwww\.\S+|\S+@\S+\.\S+/gi, '').replace(/\b(sk|pk|ghp|gho|xox[abp]|AKIA)[-_A-Za-z0-9]{6,}\b/g, '').replace(/\b[A-Za-z0-9_\-]{24,}\b/g, '');
     return s.replace(/\s+/g, ' ').trim();
   }
-  const clip = s => s.length <= MAX_CHARS ? s : s.slice(0, MAX_CHARS - 1).replace(/\s+\S*$/, '') + '…';
+  // cut by graphemes (never mid-emoji / mid surrogate pair), word boundary, the … inside the 24. more=true: text was already
+  // dropped (clause split at ':' ';' etc.), so the … is kept even when what is left fits.
+  const SEG = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter() : null;
+  const graphemes = s => SEG ? Array.from(SEG.segment(s), x => x.segment) : Array.from(s);
+  const clip = (s, more = false) => { const g = graphemes(s); if (!more && g.length <= MAX_CHARS) return s;
+    if (g.length <= MAX_CHARS - 1) return s.replace(/…$/, '') + '…';
+    let t = g.slice(0, MAX_CHARS - 1).join(''); if (g[MAX_CHARS - 1] !== ' ' && /\s/.test(t)) t = t.replace(/\s+\S*$/, '');
+    return t.trim() + '…'; };
   // fed task -> bubble text, cleaned like feed.js cleanTask: control + zero-width chars and HTML dropped, then safe() (URLs,
   // tokens, emails), max 24 chars. The bubble shows the task itself; only when there is no usable task does it fall back to
   // the bot's role label ("<role>…", else "working…").
   const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g;
-  const fedText = task => task == null ? '' : safe(String(task).replace(INVISIBLE, ' '));
+  // ZWJ inside an emoji sequence (👨‍👩‍👧) is kept so the emoji stays whole; every other ZWJ/invisible becomes a space
+  const ZWJ_EMOJI = /(\p{Extended_Pictographic}[\u{FE0F}\u{1F3FB}-\u{1F3FF}]?)\u200d(?=\p{Extended_Pictographic})/gu;
+  const stripInvisible = t => String(t).replace(ZWJ_EMOJI, '$1\uE000').replace(INVISIBLE, ' ').replace(/\uE000/g, '\u200d');
+  const fedText = task => task == null ? '' : safe(stripInvisible(task));
   const roleLabel = b => (b.role && b.role !== '?' ? clip(`${b.role}…`) : 'working…');
   function line(b, t) {
     if (b.state === 'sleeping') return { kind: 'zzz', text: 'Zzz' };
     if (b.state === 'working') { const s = fedText(b.task); if (!s) return { kind: 'text', text: roleLabel(b) };
-      return { kind: 'text', icon: iconOf(s), text: clip(s) }; }
+      const whole = stripInvisible(b.task).replace(/<[^>]*>?/g, ' ').replace(/\s+/g, ' ').trim();
+      const more = /^(.*?)(?:[\n;!?]|[.:](?=\s|$)|\s[-–—]\s)\s*\S/.test(whole);   // a clause split dropped real text
+      return { kind: 'text', icon: iconOf(s), text: clip(s, more) }; }
     const n = Math.floor(t / (ON_S + OFF_MAX)); return { kind: 'text', text: CHAT[Math.floor(hash(b.id + ':' + n) * CHAT.length)] };
   }
   // is bot b's line bubble on at sim time t? Each cycle: ON_S on, then a per-bot, per-cycle 8-20s off. Phase seeded by id.
@@ -50,11 +62,24 @@
     return t - at < ON_S;
   }
   // the bubble rect for bot b (feet x,y; label rect b.lab) with content c; measure(text, F) -> px
+  // the widest bubble (px, world): main's longest plain-text bubble. Wide glyphs (emoji) can fit 24 graphemes into far more,
+  // so text that measures wider is cut back a grapheme at a time (word boundary when one is left) and ends in '…'.
+  const MAX_W = 252;
+  function fit(text, extra, measure) {
+    const wOf = t => Math.ceil(measure(t, FONT)) + extra;
+    if (wOf(text) <= MAX_W) return text;
+    let g = graphemes(text.replace(/…$/, ''));
+    while (g.length > 1 && wOf(g.join('').trimEnd() + '…') > MAX_W) g.pop();
+    let t = g.join('').trimEnd(); const wb = t.replace(/\s+\S*$/, '');
+    if (wb && wb !== t && wOf(wb + '…') <= MAX_W && graphemes(wb).length >= g.length / 2) t = wb;   // prefer a word boundary if it keeps most of it
+    return t + '…';
+  }
   function rect(b, c, measure) {
-    const w = c.kind === 'text' ? Math.ceil(measure(c.text, FONT)) + PAD * 2 + (c.icon ? ICON + 4 : 0) : ICON + PAD * 2;   // icon only: 38x30
+    const extra = PAD * 2 + (c.icon ? ICON + 4 : 0), text = c.kind === 'text' ? fit(c.text, extra, measure) : c.text;
+    const w = c.kind === 'text' ? Math.ceil(measure(text, FONT)) + extra : ICON + PAD * 2;   // icon only: 38x30
     const head = b.y - 98, labTop = b.lab && b.lab.side === 'above' ? b.lab.y : head;
     const bottom = Math.min(head, labTop) - GAP - TAIL;
-    return { x: Math.round(b.x - w / 2), y: Math.round(bottom - H), w, h: H, tx: b.x, ty: Math.min(head, labTop) - GAP };
+    return { x: Math.round(b.x - w / 2), y: Math.round(bottom - H), w, h: H, tx: b.x, ty: Math.min(head, labTop) - GAP, text };
   }
   const hit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   // bots: [{id, x, y, state, task, check, lab}] shown on screen; t: sim s; checkS: check duration; bounds {w,h}
@@ -73,7 +98,7 @@
       let r = rect(x.b, x.c, measure); if (o.bounds) r.x = Math.max(0, Math.min(o.bounds.w - r.w, r.x));
       if (r.y < 0) continue;
       if (out.some(p => hit(p, r)) || AV.some(a => hit(a, r))) continue;
-      out.push(Object.assign(r, { id: x.b.id, kind: x.c.kind, icon: x.c.icon || null, text: x.c.text, alpha: x.alpha })); }
+      out.push(Object.assign(r, { id: x.b.id, kind: x.c.kind, icon: x.c.icon || null, text: r.text, alpha: x.alpha })); }
     return out;
   }
   const ok = i => i && i.complete && i.naturalWidth;
@@ -102,6 +127,6 @@
   const PH = { build: ['#8a8f98', 'B'], write: ['#d9c38a', 'W'], research: ['#5b8fd6', 'R'], design: ['#c0559b', 'D'], finance: ['#d4a72c', '$'], message: ['#e07a3a', 'M'] };
   function placeholderIcon(g, n, x, y) { const [c, t] = PH[n] || ['#999', '?']; g.fillStyle = c; g.strokeStyle = '#2a2a2a'; g.lineWidth = 1;
     g.fillRect(x + 1, y + 1, ICON - 2, ICON - 2); g.strokeRect(x + 1.5, y + 1.5, ICON - 3, ICON - 3); g.fillStyle = '#fff'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, x + ICON / 2, y + ICON / 2 + 1); }
-  const API = { ART, ICONS, iconOf, PAD, HAS_ART, MAX_CHARS, MAX_ON, ON_S, OFF_MIN, OFF_MAX, FONT, H, TAIL, ICON, CHAT, safe, clip, fedText, line, cycleOn, rect, hit, pick, draw };
+  const API = { ART, ICONS, iconOf, PAD, MAX_W, fit, HAS_ART, MAX_CHARS, MAX_ON, ON_S, OFF_MIN, OFF_MAX, FONT, H, TAIL, ICON, CHAT, safe, clip, fedText, line, cycleOn, rect, hit, pick, draw };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.BOT_BUBBLES = API;
 })(typeof window !== 'undefined' ? window : globalThis);

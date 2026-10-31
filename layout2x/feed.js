@@ -17,10 +17,13 @@
   const STATE_MAP = { working: 'working', idle: 'idle', asleep: 'sleeping', sleeping: 'sleeping' };
   // control chars (C0, DEL, C1) and zero-width / invisible format chars (ZWSP..RLM, bidi embeds/isolates, word joiner.., BOM, soft hyphen)
   const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g;
+  // ZWJ inside an emoji sequence (👨‍👩‍👧) is kept so the emoji stays whole; every other ZWJ/invisible becomes a space
+  const ZWJ_EMOJI = /(\p{Extended_Pictographic}[\u{FE0F}\u{1F3FB}-\u{1F3FF}]?)\u200d(?=\p{Extended_Pictographic})/gu;
+  const stripInvisible = t => String(t).replace(ZWJ_EMOJI, '$1\uE000').replace(INVISIBLE, ' ').replace(/\uE000/g, '\u200d');
 
   function cleanTask(task) {
     if (task == null) return null;
-    let s = String(task).replace(INVISIBLE, ' ');
+    let s = stripInvisible(task).replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, ''); // defensive: lone surrogates
     s = s.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ').replace(/<[^>]*>?/g, ' ').replace(/[<>]/g, ' ');
     s = s.replace(/\bhttps?:\/\/\S+|\bwww\.\S+|\S+@\S+\.\S+/gi, ' ').replace(/\b(sk|pk|ghp|gho|ghs|github_pat|xox[abprs]|AKIA)[-_A-Za-z0-9]{6,}\b/g, ' ').replace(/\b[A-Za-z0-9_\-]{24,}\b/g, ' ');
     s = s.replace(/\s+/g, ' ').trim();
@@ -30,13 +33,17 @@
   // The server hard-cuts long tasks to exactly 24 chars, so a 24-char task is treated as cut (it may end mid-word).
   const MARK = '[redacted]';
   const partialMark = w => w !== MARK && w.length > 0 && w[0] === '[' && MARK.startsWith(w);
+  // graphemes (emoji, flags, ZWJ sequences, surrogate pairs stay whole); code points when Intl.Segmenter is missing
+  const SEG = typeof Intl !== 'undefined' && Intl.Segmenter ? new Intl.Segmenter() : null;
+  const graphemes = s => SEG ? Array.from(SEG.segment(s), x => x.segment) : Array.from(s);
   function cut(s) {
     let words = s.split(' '), cutDone = false;
     if (partialMark(words[words.length - 1])) { words.pop(); cutDone = true; }
     s = words.join(' ').trim();
-    if (s.length >= MAX_CHARS) {
-      let t = s.slice(0, MAX_CHARS - 1);
-      if (s[MAX_CHARS - 1] !== ' ' && /\s/.test(t)) t = t.replace(/\s+\S*$/, '');   // drop the cut word (unless it's the only one)
+    const g = graphemes(s);
+    if (g.length >= MAX_CHARS || (cutDone && g.length > MAX_CHARS - 1)) {
+      let t = g.slice(0, MAX_CHARS - 1).join('');
+      if (g[MAX_CHARS - 1] !== ' ' && /\s/.test(t)) t = t.replace(/\s+\S*$/, '');   // drop the cut word (unless it's the only one)
       const w = t.split(' '); if (partialMark(w[w.length - 1])) w.pop(); t = w.join(' ');
       s = t.trim(); cutDone = true;
     }
@@ -115,6 +122,6 @@
     return F;
   }
 
-  const API = { FEED_URL, FEED_ORIGINS, feedUrl, MAX_POLL_MS, POLL_MS, STALE_MS, MAX_CHARS, STATE_MAP, cleanTask, cut, normalize, statuses, resolve, create };
+  const API = { FEED_URL, FEED_ORIGINS, feedUrl, MAX_POLL_MS, POLL_MS, STALE_MS, MAX_CHARS, STATE_MAP, cleanTask, cut, graphemes, normalize, statuses, resolve, create };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.BOT_FEED = API;
 })(typeof window !== 'undefined' ? window : globalThis);
