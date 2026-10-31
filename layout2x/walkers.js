@@ -213,7 +213,10 @@
     }
     const claimed = new Set();
     const since = w => w.blk ? w.blk.t0 : Infinity;
-    for (const w of S.walkers.slice().sort((p, q) => (since(p) - since(q)) || (p.id - q.id))) { decide(w, claimed); if (!w.moving) { w.frame = 'stand'; w.phase = 0; } }
+    for (const w of S.walkers.slice().sort((p, q) => (since(p) - since(q)) || (p.id - q.id))) decide(w, claimed);
+    // only once every walker has decided: a later walker's decision can start an earlier one's step (the gridlock breaker steps
+    // a ring member aside), and a walker that just finished a step carries its walk cycle on into it rather than restarting at 0
+    for (const w of S.walkers) if (!w.moving) { w.frame = 'stand'; w.phase = 0; }
   }
   function decide(w, claimed) {
     {
