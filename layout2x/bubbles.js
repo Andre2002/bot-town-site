@@ -18,8 +18,6 @@
     [/\b(art|design|image|gen|sprite|ui|clip|motion|walk cycle)/i, 'design'], [/\b(invoice|budget|finance|pay|cost|bill)/i, 'finance'], [/\b(mail|email|message|dm|slack|reply)/i, 'message']];
   const iconOf = task => { const s = safe(task); const m = ICON_OF.find(([r]) => r.test(s)); return m ? m[1] : null; };
   const CHAT = ['nice day!', 'coffee time', 'hmm…', 'hi there', 'what next?', 'lovely square', 'stretching legs'];
-  const VERB = [[/\b(fix|bug|patch)/i, 'fixing'], [/\b(review|pr\b|pr #)/i, 'reviewing'], [/\b(qa|test|check)/i, 'testing'], [/\b(clip|video|motion|walk cycle)/i, 'animating'],
-    [/\b(art|image|gen|sprite)/i, 'drawing'], [/\b(write|copy|post|doc)/i, 'writing'], [/\b(research|find|scout)/i, 'researching']];
   const hash = s => { let h = 2166136261; for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0) / 4294967296; };
   // task -> safe short title
   function safe(task) {
@@ -28,10 +26,16 @@
     return s.replace(/\s+/g, ' ').trim();
   }
   const clip = s => s.length <= MAX_CHARS ? s : s.slice(0, MAX_CHARS - 1).replace(/\s+\S*$/, '') + '…';
+  // fed task -> bubble text, cleaned like feed.js cleanTask: control + zero-width chars and HTML dropped, then safe() (URLs,
+  // tokens, emails), max 24 chars. The bubble shows the task itself; only when there is no usable task does it fall back to
+  // the bot's role label ("<role>…", else "working…").
+  const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g;
+  const fedText = task => task == null ? '' : safe(String(task).replace(INVISIBLE, ' '));
+  const roleLabel = b => (b.role && b.role !== '?' ? clip(`${b.role}…`) : 'working…');
   function line(b, t) {
     if (b.state === 'sleeping') return { kind: 'zzz', text: 'Zzz' };
-    if (b.state === 'working') { const s = safe(b.task); if (!s) return { kind: 'text', text: 'working…' };
-      const v = (VERB.find(([r]) => r.test(s)) || [0, 'on'])[1]; return { kind: 'text', icon: iconOf(b.task), text: clip(`${v} ${s.replace(/^(fix|review|qa|test|write|research|find|draw|gen|make|animate)\w*\s+/i, '')}…`.replace(/……$/, '…')) }; }
+    if (b.state === 'working') { const s = fedText(b.task); if (!s) return { kind: 'text', text: roleLabel(b) };
+      return { kind: 'text', icon: iconOf(s), text: clip(s) }; }
     const n = Math.floor(t / (ON_S + OFF_MAX)); return { kind: 'text', text: CHAT[Math.floor(hash(b.id + ':' + n) * CHAT.length)] };
   }
   // is bot b's line bubble on at sim time t? Each cycle: ON_S on, then a per-bot, per-cycle 8-20s off. Phase seeded by id.
@@ -98,6 +102,6 @@
   const PH = { build: ['#8a8f98', 'B'], write: ['#d9c38a', 'W'], research: ['#5b8fd6', 'R'], design: ['#c0559b', 'D'], finance: ['#d4a72c', '$'], message: ['#e07a3a', 'M'] };
   function placeholderIcon(g, n, x, y) { const [c, t] = PH[n] || ['#999', '?']; g.fillStyle = c; g.strokeStyle = '#2a2a2a'; g.lineWidth = 1;
     g.fillRect(x + 1, y + 1, ICON - 2, ICON - 2); g.strokeRect(x + 1.5, y + 1.5, ICON - 3, ICON - 3); g.fillStyle = '#fff'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, x + ICON / 2, y + ICON / 2 + 1); }
-  const API = { ART, ICONS, iconOf, PAD, HAS_ART, MAX_CHARS, MAX_ON, ON_S, OFF_MIN, OFF_MAX, FONT, H, TAIL, ICON, CHAT, safe, clip, line, cycleOn, rect, hit, pick, draw };
+  const API = { ART, ICONS, iconOf, PAD, HAS_ART, MAX_CHARS, MAX_ON, ON_S, OFF_MIN, OFF_MAX, FONT, H, TAIL, ICON, CHAT, safe, clip, fedText, line, cycleOn, rect, hit, pick, draw };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.BOT_BUBBLES = API;
 })(typeof window !== 'undefined' ? window : globalThis);

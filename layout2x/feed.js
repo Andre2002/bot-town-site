@@ -24,8 +24,23 @@
     s = s.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ').replace(/<[^>]*>?/g, ' ').replace(/[<>]/g, ' ');
     s = s.replace(/\bhttps?:\/\/\S+|\bwww\.\S+|\S+@\S+\.\S+/gi, ' ').replace(/\b(sk|pk|ghp|gho|ghs|github_pat|xox[abprs]|AKIA)[-_A-Za-z0-9]{6,}\b/g, ' ').replace(/\b[A-Za-z0-9_\-]{24,}\b/g, ' ');
     s = s.replace(/\s+/g, ' ').trim();
-    if (s.length > MAX_CHARS) s = s.slice(0, MAX_CHARS).trim();
-    return s || null;
+    return cut(s) || null;
+  }
+  // 24-char budget INCLUDING the '…': cut at a word boundary, never leave a partial '[redac' marker (the server may send one).
+  // The server hard-cuts long tasks to exactly 24 chars, so a 24-char task is treated as cut (it may end mid-word).
+  const MARK = '[redacted]';
+  const partialMark = w => w !== MARK && w.length > 0 && w[0] === '[' && MARK.startsWith(w);
+  function cut(s) {
+    let words = s.split(' '), cutDone = false;
+    if (partialMark(words[words.length - 1])) { words.pop(); cutDone = true; }
+    s = words.join(' ').trim();
+    if (s.length >= MAX_CHARS) {
+      let t = s.slice(0, MAX_CHARS - 1);
+      if (s[MAX_CHARS - 1] !== ' ' && /\s/.test(t)) t = t.replace(/\s+\S*$/, '');   // drop the cut word (unless it's the only one)
+      const w = t.split(' '); if (partialMark(w[w.length - 1])) w.pop(); t = w.join(' ');
+      s = t.trim(); cutDone = true;
+    }
+    return s && cutDone ? s + '…' : s;
   }
   function toMs(t) { if (t == null || t === '') return null; const v = typeof t === 'number' ? (t < 1e12 ? t * 1000 : t) : Date.parse(t); return Number.isFinite(v) ? v : null; }
   function rosterIndex(roster) { const ix = {}; for (const b of roster.bots) { ix[String(b.id).toLowerCase()] = b.id; ix[String(b.name).toLowerCase()] = b.id; } return ix; }
@@ -100,6 +115,6 @@
     return F;
   }
 
-  const API = { FEED_URL, FEED_ORIGINS, feedUrl, MAX_POLL_MS, POLL_MS, STALE_MS, MAX_CHARS, STATE_MAP, cleanTask, normalize, statuses, resolve, create };
+  const API = { FEED_URL, FEED_ORIGINS, feedUrl, MAX_POLL_MS, POLL_MS, STALE_MS, MAX_CHARS, STATE_MAP, cleanTask, cut, normalize, statuses, resolve, create };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.BOT_FEED = API;
 })(typeof window !== 'undefined' ? window : globalThis);
