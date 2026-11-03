@@ -123,7 +123,11 @@
     // A3 rules (Vega, 2026-10-30), timed on town sim time (W.S.t): a task start counts only once 'working' has held DEBOUNCE s
     // (a shorter task gets a check mark and no trip); a task end is not debounced, except that an idle blip under DEBOUNCE s
     // while the bot is at work is ignored (it keeps working and keeps its note). The feed's since only seeds this on load.
-    if (BD) W.S.offClear = true;   // A3 only: off-road legs (stands, the line, walk-ups) keep clear of bodies (walkers.js)
+    // every live bot's spot (square, bench, park, work tiles, the board) is off the lanes, so its walk-up and its first step back
+    // onto a lane are off-road legs nobody owns: they must keep clear of bodies (walkers.js offClear) with or without the board.
+    // Gating this on the board (A3) let a bot leaving its spot sweep across a villager standing on the next lane tile (the 7am
+    // and 6pm overlaps on seeds 23/28/29/59/82). The villager-only town (no ?status) never installs this and is unchanged.
+    W.S.offClear = true;
     let lastT = null; const DEB = BD ? DEBOUNCE : 0, WAITQ = [], waits = [];   // WAITQ: bots waiting for a board stand, in arrival order; waits: seconds each waited
     function eff(w) {
       const raw = modeOf(w.bot.id), t = S().t;
