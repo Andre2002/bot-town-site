@@ -43,12 +43,12 @@
     }
     return out;
   }
-  // status model + board state -> cards: working bots in board slot order, then the rest in roster order; max 8, the rest "waiting"
+  // status model + board state -> cards: working bots in board slot order, then the rest in roster order; max 8 (the rest are not shown: there is no waiting state)
   function cards(model, board) {
     const working = (model || []).filter(b => b.state === 'working');
     const slotIx = id => { if (!board) return -1; const i = board.slots.findIndex(n => n && n.bot === id && n.out == null); return i; };
     const order = working.map((b, r) => ({ b, k: slotIx(b.id) >= 0 ? slotIx(b.id) : 100 + r })).sort((a, z) => a.k - z.k).map(x => x.b);
-    return { cards: order.slice(0, MAX_CARDS).map(b => ({ id: b.id, name: b.name, task: b.task || '' })), waiting: Math.max(0, order.length - MAX_CARDS) };
+    return { cards: order.slice(0, MAX_CARDS).map(b => ({ id: b.id, name: b.name, task: b.task || '' })) };
   }
   const isSheet = vw => vw < SHEET.breakpoint;
   // card rects, panel-local: desktop grid (4x2) or sheet list
@@ -85,7 +85,6 @@
     else { g.fillStyle = '#996242'; g.fillRect(0, 0, PANEL.w, PANEL.h); g.fillStyle = '#c3a87c'; g.fillRect(CORK.x, CORK.y, CORK.w, CORK.h); }
     g.textBaseline = 'middle'; g.font = FONT.title; g.fillStyle = '#3d2517';
     const tw = g.measureText('Task Board').width; g.fillText('Task Board', PLATE.x + (PLATE.w - tw) / 2, PLATE.y + PLATE.h / 2 + 1);
-    if (data.waiting) { g.font = FONT.wait; g.fillStyle = '#fff3d0'; g.fillText('+' + data.waiting + ' waiting', PLATE.x + PLATE.w + 16, PLATE.y + PLATE.h / 2 + 1); }
     const rects = cardRects(data.cards.length, false);
     slotRects().forEach((s, i) => { if (i >= data.cards.length) pin(g, s.x + s.w / 2, s.y + 5); });
     return data.cards.map((c, i) => Object.assign({ rect: rects[i] }, drawCard(g, c, rects[i], false)));
@@ -95,7 +94,6 @@
     g.clearRect(0, 0, SHEET.w, h); g.fillStyle = '#5a3a22'; g.fillRect(0, 0, SHEET.w, h);
     g.fillStyle = '#3d2517'; g.fillRect(0, 0, SHEET.w, SHEET.bar);
     g.textBaseline = 'middle'; g.font = FONT.title; g.fillStyle = '#f6ecd0'; g.fillText('Task Board', 12, SHEET.bar / 2 + 1);
-    if (data.waiting) { const tw = g.measureText('Task Board').width; g.font = FONT.wait; g.fillStyle = '#e2bc7e'; g.fillText('+' + data.waiting + ' waiting', 24 + tw, SHEET.bar / 2 + 1); }
     if (!data.cards.length) { g.font = FONT.body; g.fillStyle = '#e2bc7e'; g.textBaseline = 'top'; g.fillText('No one is working right now', 12, SHEET.bar + 20); return []; }
     const rects = cardRects(data.cards.length, true);
     return data.cards.map((c, i) => Object.assign({ rect: rects[i] }, drawCard(g, c, rects[i], true)));

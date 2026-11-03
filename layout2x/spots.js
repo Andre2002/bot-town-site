@@ -1,17 +1,35 @@
 // Live bot status, phase A2 (plan rev 3/4, approved by Andre 2026-10-29): where a live bot goes, by state and PT clock.
 // Destinations, claims, idle rotation and sleep/wake on top of the tile walkers (walkers.js). Mock data only (no feed: B1).
 //   working  -> a work tile beside the role's shop door (roster.json shop; lots without a door get tiles on their road edge)
-//   idle     -> 7am-12pm any outdoor spot (square, bench seats, park); 12pm-6pm also indoor (library, town hall);
-//               6pm-12am the pub (indoors) or the square: the park is closed, there is no pub patio spot
+//   idle     -> 7am-12pm any outdoor spot (square, bench seats, park; dock and fishing are listed but weight 0 until a dock
+//               exists); 12pm-6pm also indoor (library, town hall); 6pm-12am the EVENING list: pub (indoors) or the square.
+//               The park is closed and there is no pub patio spot
 //   sleeping -> 12am-7am PT: the bot walks to its house door and goes in (hidden). A task overnight wakes it: out to the
 //               shop, work, then back to bed. Wake is 7am (status.js WAKE_AT).
 // Claims: one bot per spot/seat/work tile, claimed before setting off and released on leaving; the engine's tile claims
 // and door-zone reservations still apply on the way. A state or band change re-goals the bot at its next tile (no teleports).
-// No dock yet: the layout has no dock, so the plan's dock fishing spot is left out until the art/lot exists.
+// Unfinished places (FALLBACK, one list): a shop with no finished building (no art or no door) sends its bots to the nearest
+// finished shop's work tiles; an idle kind with no spot in the layout (dock, fishing) uses the nearest finished outdoor kind.
+// Nothing ever blocks: a kind with no free spot is skipped, and no destination at all means a stroll.
 // Spot nodes are added only when install() runs (?status=1), so the plain walkers (tools/checks/walk2x.py) are unchanged.
 (function (root) {
-  const OUTDOOR = ['square', 'bench', 'park'], INDOOR = ['library', 'hall'];
-  const WEIGHT = { square: 3, bench: 2, park: 2, library: 1, hall: 1, pub: 2 };
+  const OUTDOOR = ['square', 'bench', 'dock', 'park', 'fishing'], INDOOR = ['library', 'hall'];
+  const WEIGHT = { square: 3, bench: 2, dock: 0, park: 2, fishing: 0, library: 1, hall: 1, pub: 2 };
+  // dock and fishing are weight 0 until a dock exists in the layout (their FALLBACK is the bench)
+  // the 6pm-12am idle venues, one list (Andre via Vega, 2026-11-02: pub and square only; the park is closed).
+  // Future evening buildings get added here (and to WEIGHT) as they are finished.
+  const EVENING = ['pub', 'square'];
+  // unfinished -> nearest finished (by centre distance in the 2x layout; tests/spots.test.js recomputes the shop rows)
+  const FALLBACK = { workshop: 'library', tbd: 'hall', teleport: 'spare_w1', dock: 'bench', fishing: 'bench' };
+  const FINISHED_SHOPS = ['lab', 'mage_shop', 'library', 'hall', 'spare_w1'];
+  const shopFor = id => FALLBACK[id] || id;
+  const kindFor = k => FALLBACK[k] || k;
+  // nearest finished shop for a building (T.buildings), or the id itself when it is finished (door + art)
+  function nearestFinished(T, id) {
+    const B = x => T.buildings.find(b => b.id === x), b = B(id); if (!b || (b.door && b.img !== null)) return id;
+    const c = q => [q.x + q.w / 2, q.y + q.h / 2], [x, y] = c(b);
+    return FINISHED_SHOPS.map(B).filter(Boolean).sort((p, q) => Math.hypot(...c(p).map((v, i) => v - [x, y][i])) - Math.hypot(...c(q).map((v, i) => v - [x, y][i])))[0].id;
+  }
   const STAY = [60, 180];                                 // an idle stop lasts 1-3 min, then the bot picks again in its band
   const H = m => m * 60;
   const DEBOUNCE = 20, CHECK_S = 4;                       // A3: task-start debounce and check-mark time, sim seconds
@@ -20,23 +38,25 @@
     if (min < H(7)) return { id: 'night', kinds: [] };
     if (min < H(12)) return { id: 'day', kinds: OUTDOOR.slice() };
     if (min < H(18)) return { id: 'afternoon', kinds: [...OUTDOOR, ...INDOOR] };
-    return { id: 'evening', kinds: ['pub', 'square'] };
+    return { id: 'evening', kinds: EVENING.slice() };   // park (and the outdoor seats) closed
   }
   const parkOpen = min => band(min).kinds.includes('park');
   // weighted pick of an idle kind from the open kinds that still have a free spot (indoor kinds never fill)
   function pickKind(kinds, hasFree, rnd) {
-    const open = kinds.filter(hasFree); if (!open.length) return null;
+    const open = kinds.filter(k => WEIGHT[k] > 0 && hasFree(k)); if (!open.length) return null;
     let r = rnd() * open.reduce((s, k) => s + WEIGHT[k], 0);
     for (const k of open) { r -= WEIGHT[k]; if (r < 0) return k; } return open[open.length - 1];
   }
   // where a bot in a mode goes: { kind, door } for indoors, { kind, spot } for an outdoor tile, or null (stroll)
   function destination(bot, mode, min, freeSpots, rnd) {
     if (mode === 'sleeping') return { kind: 'bed', door: bot.house };
-    if (mode === 'working') { const s = freeSpots('work:' + bot.shop)[0]; return s ? { kind: 'work', spot: s } : null; }
-    const k = pickKind(band(min).kinds, k => INDOOR.includes(k) || k === 'pub' || freeSpots(k).length > 0, rnd);
+    if (mode === 'working') {   // its shop (or the fallback); a full shop spills to the next finished shop, never blocks
+      for (const id of [shopFor(bot.shop), ...FINISHED_SHOPS]) { const s = freeSpots('work:' + id)[0]; if (s) return { kind: 'work', spot: s }; }
+      return null; }
+    const k = pickKind(band(min).kinds, k => INDOOR.includes(k) || k === 'pub' || freeSpots(kindFor(k)).length > 0, rnd);
     if (!k) return null;
     if (INDOOR.includes(k) || k === 'pub') return { kind: k, door: k };
-    const f = freeSpots(k); return { kind: k, spot: f[Math.floor(rnd() * f.length)] };
+    const f = freeSpots(kindFor(k)); return { kind: kindFor(k), spot: f[Math.floor(rnd() * f.length)] };
   }
 
   // A3 load seeding: the feed's since (ISO) says how long a task has run; under deb s it is still pending (the bot shows the
@@ -201,6 +221,6 @@
     return { spots: SP, BY, KIND, CLAIM, bots, errors, add, settle, update, brain, freeSpots, board: BD, WAITQ, waits, QL, DEBOUNCE: DEB, CHECK_S };
   }
 
-  const API = { DEBOUNCE, CHECK_S, seed, OUTDOOR, INDOOR, WEIGHT, STAY, band, parkOpen, pickKind, destination, layoutSpots, install };
+  const API = { EVENING, FALLBACK, FINISHED_SHOPS, shopFor, kindFor, nearestFinished, DEBOUNCE, CHECK_S, seed, OUTDOOR, INDOOR, WEIGHT, STAY, band, parkOpen, pickKind, destination, layoutSpots, install };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.BOT_SPOTS = API;
 })(typeof window !== 'undefined' ? window : globalThis);
